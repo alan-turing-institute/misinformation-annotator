@@ -30,6 +30,9 @@ type Msg =
     | FetchError of exn
     | SelectArticle of Article
 
+type ExternalMsg =
+    | ViewArticle of Article
+    | NoOp
 
 /// Get the wish list from the server, used to populate the model
 let getAnnotations token =
@@ -89,24 +92,23 @@ let init (user:UserData) =
             loadAnnotationsCmd user.Token
             loadResetTimeCmd user.Token ]
 
-let update (msg:Msg) model : Model*Cmd<Msg> =
+let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
     | LoadForUser user ->
-        model, Cmd.none
+        model, Cmd.none, NoOp
 
     | FetchedAnnotations annotations ->
         let annotations = { annotations with Articles = annotations.Articles |> List.sortBy (fun b -> b.Title) }
-        { model with Annotations = annotations }, Cmd.none
+        { model with Annotations = annotations }, Cmd.none, NoOp
 
     | FetchedResetTime datetime ->
-        { model with ResetTime = Some datetime }, Cmd.none
+        { model with ResetTime = Some datetime }, Cmd.none, NoOp
 
     | FetchError e ->
-        { model with ErrorMsg = Some e.Message }, Cmd.none
+        { model with ErrorMsg = Some e.Message }, Cmd.none, NoOp
        
     | SelectArticle a ->
-        // TODO
-        model, Cmd.none
+        { model with SelectedArticle = Some a }, Cmd.none, ViewArticle a
 
 
 type [<Pojo>] ArticleProps = { key: string; article: Article; viewArticle: unit -> unit }
@@ -149,4 +151,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     |> ofList
             ]
         ]
+        words 20 ( 
+            match model.SelectedArticle with
+            | Some s ->  (sprintf "Selected: %s" s.Title)
+            | None ->  "No article selected." )
     ]

@@ -6,10 +6,12 @@ type PageModel =
     | HomePageModel
     | LoginModel of Login.Model
     | AnnotationsModel of Annotations.Model
+    | ArticleModel of Article.Model
 
 /// The composed model for the application, which is a single page state plus login information
 type Model =
     { User : UserData option
+      SelectedArticle : Article option
       PageModel : PageModel }
 
 /// The composed set of messages that update the state of the application
@@ -20,6 +22,8 @@ type Msg =
     | LoginMsg of Login.Msg
     | AnnotationsMsg of Annotations.Msg
     | Logout of unit
+    | ArticleMsg of Article.Msg
+    | SelectedArticle of Article
    
 
 // VIEW
@@ -39,6 +43,9 @@ let viewPage model dispatch =
 
     | AnnotationsModel m ->
         [ Annotations.view m (AnnotationsMsg >> dispatch) ]
+
+    | ArticleModel m ->
+        Article.view m (ArticleMsg >> dispatch)
 
 
 /// Constructs the view for the application given the model.

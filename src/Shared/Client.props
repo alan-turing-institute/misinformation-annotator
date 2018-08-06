@@ -6,6 +6,7 @@
     <Compile Include="../Client/Style.fs" Watch="false" />
     <Compile Include="../Client/views/Menu.fs" Watch="false" />
     <Compile Include="../Client/pages/Home.fs" Watch="false" />
+    <Compile Include="../Client/pages/Article.fs" Watch="false" />
     <Compile Include="../Client/pages/Annotations.fs" Watch="false" />
     <Compile Include="../Client/pages/Login.fs" Watch="false" />
     <Compile Include="../Client/Shared.fs" Watch="false" />

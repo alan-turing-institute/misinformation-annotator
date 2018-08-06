@@ -45,8 +45,12 @@ let urlUpdate (result:Page option) (model: Model) =
     | Some Page.Article ->
         match model.User with 
         | Some user -> 
-            let m, cmd = Annotations.init user
-            { model with PageModel = AnnotationsModel m }, Cmd.map AnnotationsMsg cmd
+            match model.SelectedArticle with
+            | Some article ->
+                let m, cmd = Article.init article
+                { model with PageModel = ArticleModel m }, Cmd.map ArticleMsg cmd
+            | None ->
+                model, Cmd.none
         | None -> 
             model, Cmd.ofMsg (Logout())
 
@@ -59,6 +63,10 @@ let saveUserCmd user =
 let deleteUserCmd =
     Cmd.ofFunc BrowserLocalStorage.delete "user" (fun _ -> LoggedOut) StorageFailure
 
+let selectArticle article =
+    Cmd.ofFunc (BrowserLocalStorage.save "article") article (fun _ -> SelectedArticle article) StorageFailure
+
+
 let init result =
     let user = loadUser ()
     let stateJson: string option = !!Browser.window?__INIT_MODEL__
@@ -69,6 +77,7 @@ let init result =
     | _ ->
         let model =
             { User = user
+              SelectedArticle = None
               PageModel = HomePageModel }
 
         urlUpdate result model
@@ -98,13 +107,23 @@ let update msg model =
     | LoginMsg _, _ -> model, Cmd.none
 
     | AnnotationsMsg msg, AnnotationsModel m ->
-        let m, cmd = Annotations.update msg m
+        let m, cmd, externalMsg = Annotations.update msg m
 
+        match externalMsg with
+        | Annotations.ExternalMsg.NoOp -> 
+            { model with
+                PageModel = AnnotationsModel m }, 
+                Cmd.map AnnotationsMsg cmd         
 
-        { model with
-            PageModel = AnnotationsModel m }, 
-            Cmd.batch [ Cmd.map AnnotationsMsg cmd 
-                        Navigation.newUrl (toPath Page.Article)]
+        | Annotations.ExternalMsg.ViewArticle a ->
+            { model with
+                PageModel = AnnotationsModel m
+                SelectedArticle = Some a
+             }, 
+            Cmd.batch [
+                    Cmd.map AnnotationsMsg cmd 
+                    selectArticle a
+                    Navigation.newUrl (toPath Page.Article) ]
 
     | AnnotationsMsg _, _ ->
         model, Cmd.none
@@ -123,7 +142,23 @@ let update msg model =
     | Logout(), _ ->
         model, deleteUserCmd
 
+    | ArticleMsg msg, ArticleModel m ->
+        let m', cmd, externalMsg = Article.update msg m
+        let cmd' =
+            match externalMsg with
+            | Article.ExternalMsg.DisplayArticle a -> selectArticle a
+            | Article.ExternalMsg.NoOp -> Cmd.none
+        model, cmd'
 
+    | ArticleMsg msg, _ ->
+        model, Cmd.none
+
+    | SelectedArticle a, ArticleModel m ->
+        { model with SelectedArticle = Some a },
+        Navigation.newUrl (toPath Page.Article)
+
+    | SelectedArticle a, _ ->
+        model, Cmd.none
 
 open Elmish.Debug
 
