@@ -37,8 +37,10 @@ let getArticlesFromDB userName =
         |> List.ofArray
     }
 
-let loadArticleFromDB article =
-    let contents = 
-        File.ReadAllLines(article.Link).[1..]
+let loadArticleFromDB link =
+    let contents = File.ReadAllLines(link)
+    let heading = contents.[0].Replace("<h1>", "").Replace("</h1>","")
+    let text = 
+        contents.[1..]
         |> Array.map (fun line -> line.Replace("<p>", "").Replace("</p>", ""))
-    { article with Text = Some contents }
+    { Title = heading; Text = Some contents; Link = link }

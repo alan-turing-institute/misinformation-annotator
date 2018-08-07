@@ -8,10 +8,10 @@ open ServerCode.Domain
 open ServerTypes
 
 /// Handle the GET on /api/article
-let getArticle (loadArticleFromDB : Article -> Task<Article>) (article : Article) : HttpHandler =
+let getArticle (loadArticleFromDB : string -> Task<Domain.Article>) (article : Domain.Article) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! article = loadArticleFromDB article
+            let! article = loadArticleFromDB article.Link
             return! ctx.WriteJsonAsync article
         }
 

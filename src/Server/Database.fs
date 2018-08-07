@@ -16,7 +16,7 @@ type IDatabaseFunctions =
     abstract member LoadAnnotations : string -> Task<Domain.Annotations>
     abstract member SaveAnnotations : Domain.Annotations -> Task<unit>
     abstract member GetLastResetTime : unit -> Task<System.DateTime>
-    abstract member LoadArticle : Domain.Article -> Task<Domain.Article>
+    abstract member LoadArticle : string -> Task<Domain.Article>
 
 /// Start the web server and connect to database
 let getDatabase databaseType startupTime =
