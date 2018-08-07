@@ -47,7 +47,7 @@ let urlUpdate (result:Page option) (model: Model) =
         | Some user -> 
             match model.SelectedArticle with
             | Some article ->
-                let m, cmd = Article.init article
+                let m, cmd = Article.init user article
                 { model with PageModel = ArticleModel m }, Cmd.map ArticleMsg cmd
             | None ->
                 model, Cmd.none

@@ -32,6 +32,13 @@ let getArticlesFromDB userName =
         articles
         |> Array.map (fun filename -> 
             { Title = File.ReadAllLines(filename).[0].Replace("<h1>", "").Replace("</h1>","")
-              Link = filename  })
+              Link = filename 
+              Text = None })
         |> List.ofArray
     }
+
+let loadArticleFromDB article =
+    let contents = 
+        File.ReadAllLines(article.Link).[1..]
+        |> Array.map (fun line -> line.Replace("<p>", "").Replace("</p>", ""))
+    { article with Text = Some contents }

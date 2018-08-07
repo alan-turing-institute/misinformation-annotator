@@ -27,6 +27,8 @@ let webApp databaseType root =
 
             route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.getAnnotations db.LoadAnnotations))
             route APIUrls.ResetTime (Annotations.getResetTime db.GetLastResetTime)
+
+            route APIUrls.Article (Article.getArticle db.LoadArticle)
         ]
 
         POST [

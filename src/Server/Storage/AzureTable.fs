@@ -37,7 +37,15 @@ let getAnnotationsFromDB connectionString userName = task {
           Articles =
             [ for result in results ->
                 { Title = result.Properties.["Title"].StringValue
-                  Link = string result.Properties.["Link"].StringValue } ] } }
+                  Link = string result.Properties.["Link"].StringValue 
+                  Text = None} ] } }
+
+/// load article from the database
+let loadArticleFromDB connectionString article = task {
+   return
+        { Title = ""; Link = ""; Text = None }
+    }
+
 
 /// Save to the database
 let saveAnnotationsToDB connectionString annotations = task {
@@ -67,6 +75,7 @@ let saveAnnotationsToDB connectionString annotations = task {
             let entity = buildEntity annotations.UserName article
             entity.Properties.["Title"] <- EntityProperty.GeneratePropertyForString article.Title
             entity.Properties.["Link"] <- EntityProperty.GeneratePropertyForString article.Link
+            entity.Properties.["Text"] <- EntityProperty.GeneratePropertyForString ""
             entity |> TableOperation.InsertOrReplace |> operation.Add)
 
         operation

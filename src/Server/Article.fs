@@ -1,5 +1,5 @@
 /// Wish list API web parts and data access functions.
-module ServerCode.Annotations
+module ServerCode.Article
 
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Http
@@ -7,23 +7,24 @@ open Giraffe
 open ServerCode.Domain
 open ServerTypes
 
-/// Handle the GET on /api/annotations
-let getAnnotations (getArticleFromDB : string -> Task<Annotations>) (token : UserRights) : HttpHandler =
+/// Handle the GET on /api/article
+let getArticle (loadArticleFromDB : Article -> Task<Article>) (article : Article) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! annotations = getArticleFromDB token.UserName
-            return! ctx.WriteJsonAsync annotations
+            let! article = loadArticleFromDB article
+            return! ctx.WriteJsonAsync article
         }
 
-let private invalidAnnotations =
-    RequestErrors.BAD_REQUEST "Annotations is not valid"
+//let private invalidArticle =
+//    RequestErrors.BAD_REQUEST "Article is not valid"
 
-let inline private forbiddenAnnotations username =
-    sprintf "Annotations is not matching user %s" username
+let inline private forbiddenArticle username =
+    sprintf "Article is not matching user %s" username
     |> RequestErrors.FORBIDDEN
 
-/// Handle the POST on /api/annotations
-let postAnnotations (saveAnnotationsToDB: Annotations -> Task<unit>) (token : UserRights) : HttpHandler =
+/// Handle the POST on /api/article
+(*
+let postArticle (saveAnnotationsToDB: Annotations -> Task<unit>) (token : UserRights) : HttpHandler =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
             let! annotations = ctx.BindJsonAsync<Domain.Annotations>()
@@ -40,3 +41,4 @@ let getResetTime (getLastResetTime: unit -> Task<System.DateTime>) : HttpHandler
             let! lastResetTime = getLastResetTime()
             return! ctx.WriteJsonAsync({ Time = lastResetTime })
         }
+*)        

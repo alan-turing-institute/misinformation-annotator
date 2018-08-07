@@ -20,14 +20,18 @@ type UserData =
   { UserName : string
     Token    : JWT }
 
+type ArticleText = string []
+
 /// The data for each article in /api/annotations
 type Article =
     { Title: string
-      Link: string }
+      Link: string 
+      Text: ArticleText option }
 
     static member empty =
         { Title = ""
-          Link = "" }
+          Link = "" 
+          Text = None }          
 
 /// The logical representation of the data for /api/annotations
 type Annotations =

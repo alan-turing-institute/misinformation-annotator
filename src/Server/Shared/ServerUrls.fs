@@ -15,3 +15,5 @@ module APIUrls =
   let ResetTime = "/api/annotations/resetTime/"
   [<Literal>]
   let Login = "/api/users/login/"
+  [<Literal>]
+  let Article = "/api/article/"
