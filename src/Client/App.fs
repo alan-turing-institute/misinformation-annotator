@@ -63,9 +63,6 @@ let saveUserCmd user =
 let deleteUserCmd =
     Cmd.ofFunc BrowserLocalStorage.delete "user" (fun _ -> LoggedOut) StorageFailure
 
-let selectArticle article =
-    Cmd.ofFunc (BrowserLocalStorage.save "article") article (fun _ -> SelectedArticle article) StorageFailure
-
 
 let init result =
     let user = loadUser ()
@@ -122,8 +119,8 @@ let update msg model =
              }, 
             Cmd.batch [
                     Cmd.map AnnotationsMsg cmd 
-                    selectArticle a
-                    Navigation.newUrl (toPath Page.Article) ]
+                    Navigation.newUrl (toPath Page.Article) 
+                    ]
 
     | AnnotationsMsg _, _ ->
         model, Cmd.none
@@ -144,20 +141,9 @@ let update msg model =
 
     | ArticleMsg msg, ArticleModel m ->
         let m', cmd, externalMsg = Article.update msg m
-        let cmd' =
-            match externalMsg with
-            | Article.ExternalMsg.DisplayArticle a -> selectArticle a
-            | Article.ExternalMsg.NoOp -> Cmd.none
-        model, cmd'
-
-    | ArticleMsg msg, _ ->
         model, Cmd.none
 
-    | SelectedArticle a, ArticleModel m ->
-        { model with SelectedArticle = Some a },
-        Navigation.newUrl (toPath Page.Article)
-
-    | SelectedArticle a, _ ->
+    | ArticleMsg msg, _ ->
         model, Cmd.none
 
 open Elmish.Debug
@@ -176,7 +162,7 @@ Program.mkProgram init update view
 |> Program.withHMR
 #endif
 |> withReact "elmish-app"
-#if DEBUG
-|> Program.withDebugger
-#endif
+//#if DEBUG
+//|> Program.withDebugger
+//#endif
 |> Program.run

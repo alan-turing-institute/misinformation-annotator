@@ -26,12 +26,12 @@ type ArticleText = string []
 type Article =
     { Title: string
       Link: string 
-      Text: ArticleText option }
+      Text: ArticleText option } // maybe can remove text from here
 
     static member empty =
         { Title = ""
           Link = "" 
-          Text = None }          
+          Text = None }                    
 
 /// The logical representation of the data for /api/annotations
 type Annotations =

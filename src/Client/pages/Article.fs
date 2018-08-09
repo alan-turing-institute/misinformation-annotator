@@ -15,7 +15,9 @@ open Style
 open System
 
 type Model = {
-    Article: Article option
+    Heading: string
+    Text: string []
+    Link: string
     Tags: string list
 }
 
@@ -23,11 +25,13 @@ type Msg =
     | View
     | FetchedArticle of Article
     | FetchError of exn
+    | FetchArticle
 
 type ExternalMsg = 
     | DisplayArticle of Article
     | NoOp    
 
+(*
 let getArticle token =
     promise {
         let url = ServerUrls.APIUrls.Article
@@ -38,44 +42,62 @@ let getArticle token =
         return! Fetch.fetchAs<Article> url props
     }
 
-
 let loadArticleCmd token =
     Cmd.ofPromise getArticle token FetchedArticle FetchError
+*)
+
+
+let postArticle (article : Domain.Article) =
+    promise {
+        let url = ServerUrls.APIUrls.Article
+        let body = toJson article
+        let props = 
+            [ RequestProperties.Method HttpMethod.POST
+              Fetch.requestHeaders [
+//                HttpRequestHeaders.Authorization ("Bearer " + token)
+                HttpRequestHeaders.ContentType "application/json" ]
+              RequestProperties.Body !^body ]
+        return! Fetch.fetchAs<Article> url props          
+    }
+
+let postArticleCmd article = 
+    Cmd.ofPromise postArticle article FetchedArticle FetchError
 
 let init (user:UserData) (article: Article)  = 
-    { Article = Some article; Tags = [] }, 
-    loadArticleCmd user.Token
+    { Heading = article.Title
+      Text = match article.Text with | Some t -> t | None -> [||]
+      Tags = []
+      Link = article.Link }, 
+    postArticleCmd article
 
 let view (model:Model) (dispatch: Msg -> unit) =
-    match model.Article with
-    | Some article ->
-        [
-            div [ ClassName "article" ] [
-                yield h1 [] [ str (article.Title) ]
-                match article.Text with
-                | Some text ->
-                    for paragraph in text do
-                        yield p [] [ str paragraph ]
-                | None ->
-                    yield p [] [ str "Text not loaded." ]
-            ]
+    [
+        div [ ClassName "article" ] [
+            yield h1 [] [ str (model.Heading) ]
+            for paragraph in model.Text do
+                yield p [] [ str paragraph ]
         ]
+    ]
  
-    | None -> 
-        [
-            div [ ClassName "article" ] [ 
-                h2 [] [ str "No article selected."] 
-            ]
-        ]
-
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
+    | FetchArticle -> 
+        model, postArticleCmd { Article.Title = model.Heading; Link = model.Link; Text = None }, NoOp
+        
     | View -> 
-        match model.Article with 
-        | Some a -> model, Cmd.none, DisplayArticle a
-        | None -> model, Cmd.none, NoOp
+        Browser.console.log("View message in update")
+        model, Cmd.none, NoOp //DisplayArticle model.Article
+
     | FetchedArticle a ->
-        { model with Article = Some a }, Cmd.none, NoOp
+        Browser.console.log("Fetched article!")
+        
+        match a.Text with
+        | Some t ->         
+            Browser.console.log(t.[0])
+            Browser.console.log("Trying to add article text to the model")
+            { model with Text = t }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
     | FetchError e ->
         model, Cmd.none, NoOp
 

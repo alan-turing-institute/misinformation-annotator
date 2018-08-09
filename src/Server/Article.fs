@@ -7,12 +7,14 @@ open Giraffe
 open ServerCode.Domain
 open ServerTypes
 
-/// Handle the GET on /api/article
-let getArticle (loadArticleFromDB : string -> Task<Domain.Article>) (article : Domain.Article) : HttpHandler =
+/// Handle the POST on /api/article
+let getArticle (loadArticleFromDB : string -> Task<Domain.Article>) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! article = loadArticleFromDB article.Link
-            return! ctx.WriteJsonAsync article
+            let! article = ctx.BindModelAsync<Domain.Article>()
+            let! fullArticle = loadArticleFromDB article.Link
+            //let! article = loadArticleFromDB article.Link
+            return! ctx.WriteJsonAsync fullArticle
         }
 
 //let private invalidArticle =

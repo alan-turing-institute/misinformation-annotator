@@ -98,6 +98,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         model, Cmd.none, NoOp
 
     | FetchedAnnotations annotations ->
+        Browser.console.log("Fetched annotations - adapting model")
         let annotations = { annotations with Articles = annotations.Articles |> List.sortBy (fun b -> b.Title) }
         { model with Annotations = annotations }, Cmd.none, NoOp
 
@@ -122,7 +123,7 @@ let articleComponent { article = article; viewArticle = viewArticle } =
             yield str article.Title 
         ]
     td [] [
-           td [] [ buttonLink "" viewArticle  [ str "Annotate" ] ]
+           buttonLink "" viewArticle  [ str "Annotate" ] 
       ]
     ]
 

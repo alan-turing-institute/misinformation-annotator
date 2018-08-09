@@ -23,7 +23,6 @@ type Msg =
     | AnnotationsMsg of Annotations.Msg
     | Logout of unit
     | ArticleMsg of Article.Msg
-    | SelectedArticle of Article
    
 
 // VIEW
