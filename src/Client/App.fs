@@ -141,7 +141,7 @@ let update msg model =
 
     | ArticleMsg msg, ArticleModel m ->
         let m', cmd, externalMsg = Article.update msg m
-        model, Cmd.none
+        { model with PageModel = ArticleModel m' }, Cmd.map ArticleMsg cmd
 
     | ArticleMsg msg, _ ->
         model, Cmd.none
