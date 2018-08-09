@@ -165,3 +165,12 @@ body {
      height: "80%";
      width: "100%";
 }
+
+.container {
+    max-width: 800px;
+    font-size: 18px;
+}
+
+.btn {
+    margin: 10px 10px 10px 10px;
+}

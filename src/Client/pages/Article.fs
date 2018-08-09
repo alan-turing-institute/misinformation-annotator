@@ -72,7 +72,10 @@ let init (user:UserData) (article: Article)  =
 
 let view (model:Model) (dispatch: Msg -> unit) =
     [
-        div [ ClassName "article" ] [
+        div [ ClassName "container" ] [
+            yield button [ ClassName "btn" ] [ str "Tag 1"]
+            yield button [ ClassName "btn btn-success" ] [ str "Tag 2"]
+            yield button [ ClassName "btn"] [str "Tag 3"]
             yield h1 [] [ str (model.Heading) ]
             for paragraph in model.Text do
                 yield p [] [ str paragraph ]

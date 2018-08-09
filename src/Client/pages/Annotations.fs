@@ -138,7 +138,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
             thead [] [
                     tr [] [
                         th [] [str "Title"]
-                        th [] [str "Annotate!"]
+                        th [] [str ""]
                 ]
             ]
             tbody [] [
@@ -152,8 +152,4 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     |> ofList
             ]
         ]
-        words 20 ( 
-            match model.SelectedArticle with
-            | Some s ->  (sprintf "Selected: %s" s.Title)
-            | None ->  "No article selected." )
     ]

@@ -43,4 +43,4 @@ let loadArticleFromDB link =
     let text = 
         contents.[1..]
         |> Array.map (fun line -> line.Replace("<p>", "").Replace("</p>", ""))
-    { Title = heading; Text = Some contents; Link = link }
+    { Title = heading; Text = Some text; Link = link }
