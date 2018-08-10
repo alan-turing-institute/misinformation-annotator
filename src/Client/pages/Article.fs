@@ -89,11 +89,24 @@ let getSelection () =
     let rawOutput = jsGetSelection()
     match string (rawOutput?("type")) with
     | "Range" -> 
-        { StartParagraphIdx = rawOutput?anchorNode?parentElement?id |> unbox<int>
-          EndParagraphIdx = rawOutput?focusNode?parentElement?id |> unbox<int>
-          StartIdx = rawOutput?anchorOffset |> unbox<int>
-          EndIdx = rawOutput?focusOffset |> unbox<int>
+        let startParagraph = rawOutput?anchorNode?parentElement?id |> unbox<int>
+        let endParagraph = rawOutput?focusNode?parentElement?id |> unbox<int>
+        let startIdx = rawOutput?anchorOffset |> unbox<int>
+        let endIdx = rawOutput?focusOffset |> unbox<int>
+        let startP, startI, endP, endI =
+            if startParagraph < endParagraph then
+                startParagraph, startIdx, endParagraph, endIdx
+            else if startParagraph = endParagraph then
+                startParagraph, min startIdx endIdx, endParagraph, max startIdx endIdx
+            else 
+                endParagraph, endIdx, startParagraph, startIdx
+
+        { StartParagraphIdx = startP
+          StartIdx = startI
+          EndParagraphIdx = endP
+          EndIdx = endI
           Text = jsExtractText(rawOutput)} |> Some
+          
     | _ -> None
 
 let view (model:Model) (dispatch: Msg -> unit) =
