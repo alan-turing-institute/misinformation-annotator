@@ -14,6 +14,14 @@ open ServerCode.Domain
 open Style
 open System
 
+type Selection = {
+    StartParagraphIdx: int
+    EndParagraphIdx : int
+    StartIdx : int  // within parent paragraph
+    EndIdx: int     // within parent paragraph
+    Text: string
+}
+
 type Model = {
     Heading: string
     Text: string []
@@ -26,7 +34,7 @@ type Msg =
     | FetchedArticle of Article
     | FetchError of exn
     | FetchArticle
-    | TextSelected of string
+    | TextSelected of Selection option
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -72,12 +80,21 @@ let init (user:UserData) (article: Article)  =
     postArticleCmd article 
 
 [<Emit("window.getSelection()")>]
-let jsGetSelection () : string = jsNative    
+let jsGetSelection () : obj = jsNative    
+
+[<Emit("$0.toString()")>]
+let jsExtractText (selection: obj) : string = jsNative
 
 let getSelection () = 
     let rawOutput = jsGetSelection()
-    Browser.console.log(rawOutput)
-    rawOutput
+    match string (rawOutput?("type")) with
+    | "Range" -> 
+        { StartParagraphIdx = rawOutput?anchorNode?parentElement?id |> unbox<int>
+          EndParagraphIdx = rawOutput?focusNode?parentElement?id |> unbox<int>
+          StartIdx = rawOutput?anchorOffset |> unbox<int>
+          EndIdx = rawOutput?focusOffset |> unbox<int>
+          Text = jsExtractText(rawOutput)} |> Some
+    | _ -> None
 
 let view (model:Model) (dispatch: Msg -> unit) =
     [
@@ -87,8 +104,9 @@ let view (model:Model) (dispatch: Msg -> unit) =
             yield button [ ClassName "btn"] [str "Tag 3"]
             yield h1 [] [ str (model.Heading) ]
             yield div [ ] [
-                for paragraph in model.Text do
-                    yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection()))) ] [ str paragraph ]
+                for idx, paragraph in (Array.zip [|1..model.Text.Length|] model.Text) do
+                    yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection()))) 
+                              Id (string idx) ] [ str paragraph ]
             ]
         ]
     ]
@@ -104,8 +122,8 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Browser.console.log("View message in update")
         model, Cmd.none, NoOp //DisplayArticle model.Article
 
-    | TextSelected t ->
-        Browser.console.log("Text selected")
+    | TextSelected (t:Selection option) ->
+        Browser.console.log("Text selected:")
         Browser.console.log(t)
         model, Cmd.none, NoOp
 
