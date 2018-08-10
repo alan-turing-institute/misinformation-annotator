@@ -26,6 +26,7 @@ type Msg =
     | FetchedArticle of Article
     | FetchError of exn
     | FetchArticle
+    | TextSelected of string
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -68,7 +69,15 @@ let init (user:UserData) (article: Article)  =
       Text = match article.Text with | Some t -> t | None -> [||]
       Tags = []
       Link = article.Link }, 
-    postArticleCmd article
+    postArticleCmd article 
+
+[<Emit("window.getSelection()")>]
+let jsGetSelection () : string = jsNative    
+
+let getSelection () = 
+    let rawOutput = jsGetSelection()
+    Browser.console.log(rawOutput)
+    rawOutput
 
 let view (model:Model) (dispatch: Msg -> unit) =
     [
@@ -77,10 +86,14 @@ let view (model:Model) (dispatch: Msg -> unit) =
             yield button [ ClassName "btn btn-success" ] [ str "Tag 2"]
             yield button [ ClassName "btn"] [str "Tag 3"]
             yield h1 [] [ str (model.Heading) ]
-            for paragraph in model.Text do
-                yield p [] [ str paragraph ]
+            yield div [ ] [
+                for paragraph in model.Text do
+                    yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection()))) ] [ str paragraph ]
+            ]
         ]
     ]
+
+
  
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
@@ -90,6 +103,11 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | View -> 
         Browser.console.log("View message in update")
         model, Cmd.none, NoOp //DisplayArticle model.Article
+
+    | TextSelected t ->
+        Browser.console.log("Text selected")
+        Browser.console.log(t)
+        model, Cmd.none, NoOp
 
     | FetchedArticle a ->
         Browser.console.log("Fetched article!")
