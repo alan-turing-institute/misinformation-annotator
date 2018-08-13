@@ -174,3 +174,23 @@ body {
 .btn {
     margin: 10px 10px 10px 10px;
 }
+
+.span0 {
+    background-color: #b3e2cd;
+}
+
+.span1 {
+    background-color: #fdcdac;
+}
+
+.span2 {
+    background-color: #cbd5e8;
+}
+
+.span3 {
+    background-color: #f4cae4;
+}
+
+.span4 {
+    background-color: #e6f5c9;
+}

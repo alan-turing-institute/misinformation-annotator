@@ -22,12 +22,20 @@ type Selection = {
     Text: string
 }
 
+// Information regarding information sources from articles
+type SourceInfo = {
+    TextMentions : Selection list
+    Id : int
+}
+
 type Model = {
     Heading: string
     Text: string []
     Link: string
     Tags: string list
     Q1_MentionsSources: bool option
+    SourceInfo : SourceInfo []
+    SourceSelectionMode : int option // id of the source that's being annotated
 }
 
 type Msg = 
@@ -35,8 +43,11 @@ type Msg =
     | FetchedArticle of Article
     | FetchError of exn
     | FetchArticle
-    | TextSelected of Selection option
+    | TextSelected of (int*Selection) option
     | Q1_MentionsSources of bool
+    | HighlightSource of int
+    | FinishedHighlighting
+    | ClearHighlights of int
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -79,7 +90,9 @@ let init (user:UserData) (article: Article)  =
       Text = match article.Text with | Some t -> t | None -> [||]
       Tags = []
       Link = article.Link 
-      Q1_MentionsSources = None }, 
+      Q1_MentionsSources = None 
+      SourceInfo = [||]
+      SourceSelectionMode = None }, 
     postArticleCmd article 
 
 [<Emit("window.getSelection()")>]
@@ -88,49 +101,132 @@ let jsGetSelection () : obj = jsNative
 [<Emit("$0.toString()")>]
 let jsExtractText (selection: obj) : string = jsNative
 
-let getSelection () = 
-    let rawOutput = jsGetSelection()
-    match string (rawOutput?("type")) with
-    | "Range" -> 
-        let startParagraph = rawOutput?anchorNode?parentElement?id |> unbox<int>
-        let endParagraph = rawOutput?focusNode?parentElement?id |> unbox<int>
-        let startIdx = rawOutput?anchorOffset |> unbox<int>
-        let endIdx = rawOutput?focusOffset |> unbox<int>
-        let startP, startI, endP, endI =
-            if startParagraph < endParagraph then
-                startParagraph, startIdx, endParagraph, endIdx
-            else if startParagraph = endParagraph then
-                startParagraph, min startIdx endIdx, endParagraph, max startIdx endIdx
-            else 
-                endParagraph, endIdx, startParagraph, startIdx
+let getSelection (model: Model) = 
+    match model.SourceSelectionMode with
+    | None -> None
+    | Some id ->
+        let rawOutput = jsGetSelection()
+        match string (rawOutput?("type")) with
+        | "Range" -> 
+            let startParagraph = rawOutput?anchorNode?parentElement?id |> unbox<int>
+            let endParagraph = rawOutput?focusNode?parentElement?id |> unbox<int>
+            let startIdx = rawOutput?anchorOffset |> unbox<int>
+            let endIdx = rawOutput?focusOffset |> unbox<int>
+            let startP, startI, endP, endI =
+                if startParagraph < endParagraph then
+                    startParagraph, startIdx, endParagraph, endIdx
+                else if startParagraph = endParagraph then
+                    startParagraph, min startIdx endIdx, endParagraph, max startIdx endIdx
+                else 
+                    endParagraph, endIdx, startParagraph, startIdx
 
-        { StartParagraphIdx = startP
-          StartIdx = startI
-          EndParagraphIdx = endP
-          EndIdx = endI
-          Text = jsExtractText(rawOutput)} |> Some
-
-    | _ -> None
+            (id, 
+             { StartParagraphIdx = startP
+               StartIdx = startI
+               EndParagraphIdx = endP
+               EndIdx = endI
+               Text = jsExtractText(rawOutput)}) |> Some
+        | _ -> None
     
-let viewAddSource n =
+let viewAddSource model n (dispatch: Msg -> unit) =
     [
         h5 [] [ str ("Source number " + string n) ]
         ol [ ] [
-            li [] [ str "Highlight the portion of the text where you find the source."
-                    br []
-                    str "There may be multiple sections in the text that refer to the same source." ]
+            li [ ] 
+               [ str "Highlight the portion of the text where you find the source."
+                 br []
+                 str "There may be multiple sections in the text that refer to the same source."
+                 br []
+                 button [ OnClick (fun _ -> dispatch (HighlightSource n)) ] [ str "Start" ]
+                 button [ OnClick (fun _ -> dispatch (FinishedHighlighting)) ] [ str "Finished" ]
+                 button [ OnClick (fun _ -> dispatch (ClearHighlights n)) ] [ str "Clear highlights" ] ]
         ]
-        button [ClassName "btn btn-info" ] [ str "+ Add source"]
+        button [
+            ClassName "btn btn-info"
+            OnClick (fun _ -> ()) ] 
+            [ str "+ Add additional source"]
     ]
+
+type ParagraphPart = {
+    StartIdx : int
+    EndIdx : int 
+    SpanId : int option
+    Text : string
+}
+
+let viewParagraph (model: Model) paragraphIdx (text: string)  =
+    if model.SourceInfo.Length = 0 then [ str text ] else
+    
+    // split up into pieces, add span attributes later
+    let initialState = [{StartIdx = 0; EndIdx=text.Length-1; SpanId = None; Text = text }]
+    let updatedParts = 
+        (initialState, model.SourceInfo)
+        ||> Array.fold (fun paragraphParts sourceInfo ->
+            // selected specific source, loop over highlights
+            let allSelections = sourceInfo.TextMentions
+            (paragraphParts, allSelections) 
+            ||> List.fold (fun paragraphParts' selection -> 
+                if paragraphIdx >= selection.StartParagraphIdx && paragraphIdx <= selection.EndParagraphIdx then
+                    let startI = 
+                        if selection.StartParagraphIdx = paragraphIdx then selection.StartIdx
+                        else 0
+                    let endI = 
+                        if selection.EndParagraphIdx = paragraphIdx then selection.EndIdx
+                        else text.Length - 1                 
+                    
+                    // Loop over paragraph parts
+                    paragraphParts'
+                    |> List.collect (fun part -> 
+                            let idx i = i - part.StartIdx   
+                            if part.StartIdx >= startI && part.EndIdx <= endI then
+                                [ { part with SpanId = Some sourceInfo.Id } ]
+                            else if part.StartIdx <= startI && part.EndIdx >= endI then
+                                let text1,text2,text3 = 
+                                    part.Text.[0.. idx startI-1], 
+                                    part.Text.[idx startI .. idx endI], 
+                                    part.Text.[idx endI + 1..]
+                                [   
+                                    if text1 <> "" then 
+                                        yield { StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1 }
+                                    if text2 <> "" then
+                                        yield { StartIdx = startI; EndIdx = endI; SpanId = Some sourceInfo.Id; Text = text2 }
+                                    if text3 <> "" then
+                                        yield { StartIdx = endI+1; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text3 }
+                                ]
+                            else if part.StartIdx > startI && part.EndIdx > endI then
+                                let text1, text2 = part.Text.[0..idx endI], part.Text.[idx endI+1..]
+                                [
+                                        yield {StartIdx = part.StartIdx; EndIdx = endI; SpanId = Some sourceInfo.Id; Text = text1}
+                                        yield { StartIdx = endI+1; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text2 }
+                                ]
+                            else if part.StartIdx < startI && part.EndIdx < endI then
+                                let text1, text2 = part.Text.[0..idx startI], part.Text.[idx startI+1..]
+                                [
+                                        yield {StartIdx = part.StartIdx; EndIdx = startI; SpanId = part.SpanId; Text = text1}
+                                        yield { StartIdx = startI+1; EndIdx = part.EndIdx; SpanId = Some sourceInfo.Id; Text = text2 }
+                                ]                            
+                            else [part]
+                        )
+                else
+                    // selection doesn't involve the current paragraph
+                    paragraphParts' 
+                )
+        )
+    updatedParts
+    |> List.map (fun part ->
+        match part.SpanId with
+        | Some id -> span [ ClassName ("span" + string id) ] [ str part.Text ]
+        | None -> str part.Text)    
+
 
 let view (model:Model) (dispatch: Msg -> unit) =
     [
         div [ ClassName "container" ] [
             yield h1 [] [ str (model.Heading) ]
             yield div [ ] [
-                for idx, paragraph in (Array.zip [|1..model.Text.Length|] model.Text) do
-                    yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection()))) 
-                              Id (string idx) ] [ str paragraph ]
+                for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
+                    yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection model))) 
+                              Id (string idx) ]  (viewParagraph model idx paragraph) 
             ]
             yield hr []
         ]
@@ -151,7 +247,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
             match model.Q1_MentionsSources with
               | None | Some false ->  []
               | Some true ->
-                   viewAddSource 1
+                   viewAddSource model 0 dispatch
         )
 
     ]
@@ -167,10 +263,23 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Browser.console.log("View message in update")
         model, Cmd.none, NoOp //DisplayArticle model.Article
 
-    | TextSelected (t:Selection option) ->
-        Browser.console.log("Text selected:")
-        Browser.console.log(t)
-        model, Cmd.none, NoOp
+    | TextSelected x ->
+        match x with
+        | Some (id, selection) ->
+            Browser.console.log("Text selected:")
+            Browser.console.log(selection)
+            if model.SourceInfo.Length < id+1 
+            then 
+                Browser.console.log("Source not added!")
+                model, Cmd.none, NoOp
+            else
+                let modelInfo = model.SourceInfo
+                let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
+                modelInfo.[id] <- newInfoItem
+
+                { model with SourceInfo = modelInfo }, Cmd.none, NoOp
+        | None -> 
+            model, Cmd.none, NoOp
 
     | FetchedArticle a ->
         Browser.console.log("Fetched article!")
@@ -186,6 +295,22 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         model, Cmd.none, NoOp
 
     | Q1_MentionsSources x ->
-        { model with Q1_MentionsSources = Some x },
+        { model with Q1_MentionsSources = Some x; SourceInfo = [| { Id = 0; TextMentions = [] } |] },
         Cmd.none, NoOp
+
+    | HighlightSource n ->
+        { model with SourceSelectionMode = Some n }, 
+        Cmd.none, NoOp
+
+    | FinishedHighlighting ->
+        { model with SourceSelectionMode = None}, Cmd.none, NoOp
+
+    | ClearHighlights n ->
+        let currentSources = model.SourceInfo
+        if currentSources.Length <= n+1 then 
+            currentSources.[n] <- { currentSources.[n] with TextMentions = [] }
+            { model with SourceInfo = currentSources }, Cmd.none, NoOp
+        else 
+            Browser.console.log("Clear highlights from source " + string n + " but source not found.")
+            model, Cmd.none, NoOp        
 
