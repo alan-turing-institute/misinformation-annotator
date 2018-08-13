@@ -194,3 +194,16 @@ body {
 .span4 {
     background-color: #e6f5c9;
 }
+
+.article {
+    position: relative;
+}
+
+.article-highlights {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    color: white;
+}
+

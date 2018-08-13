@@ -31,6 +31,7 @@ type SourceInfo = {
 type Model = {
     Heading: string
     Text: string []
+    //HighlightedText: string [][]
     Link: string
     Tags: string list
     Q1_MentionsSources: bool option
@@ -102,6 +103,7 @@ let jsGetSelection () : obj = jsNative
 let jsExtractText (selection: obj) : string = jsNative
 
 let getSelection (model: Model) = 
+    Browser.console.log(jsGetSelection())
     match model.SourceSelectionMode with
     | None -> None
     | Some id ->
@@ -154,10 +156,10 @@ type ParagraphPart = {
     Text : string
 }
 
-let viewParagraph (model: Model) paragraphIdx (text: string)  =
+let viewParagraphHighlights (model: Model) paragraphIdx (text: string)  =
     if model.SourceInfo.Length = 0 then [ str text ] else
-    
-    // split up into pieces, add span attributes later
+
+    // split up into pieces first, add span attributes later
     let initialState = [{StartIdx = 0; EndIdx=text.Length-1; SpanId = None; Text = text }]
     let updatedParts = 
         (initialState, model.SourceInfo)
@@ -172,38 +174,38 @@ let viewParagraph (model: Model) paragraphIdx (text: string)  =
                         else 0
                     let endI = 
                         if selection.EndParagraphIdx = paragraphIdx then selection.EndIdx
-                        else text.Length - 1                 
+                        else text.Length       
                     
                     // Loop over paragraph parts
                     paragraphParts'
                     |> List.collect (fun part -> 
                             let idx i = i - part.StartIdx   
                             if part.StartIdx >= startI && part.EndIdx <= endI then
-                                [ { part with SpanId = Some sourceInfo.Id } ]
+                                [ { part with SpanId = Some sourceInfo.Id } ] 
                             else if part.StartIdx <= startI && part.EndIdx >= endI then
                                 let text1,text2,text3 = 
                                     part.Text.[0.. idx startI-1], 
-                                    part.Text.[idx startI .. idx endI], 
-                                    part.Text.[idx endI + 1..]
+                                    part.Text.[idx startI .. idx endI-1], 
+                                    part.Text.[idx endI ..]
                                 [   
                                     if text1 <> "" then 
                                         yield { StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1 }
                                     if text2 <> "" then
-                                        yield { StartIdx = startI; EndIdx = endI; SpanId = Some sourceInfo.Id; Text = text2 }
+                                        yield { StartIdx = startI; EndIdx = endI-1; SpanId = Some sourceInfo.Id; Text = text2 }
                                     if text3 <> "" then
-                                        yield { StartIdx = endI+1; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text3 }
+                                        yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text3 }
                                 ]
                             else if part.StartIdx > startI && part.EndIdx > endI then
-                                let text1, text2 = part.Text.[0..idx endI], part.Text.[idx endI+1..]
+                                let text1, text2 = part.Text.[0..idx endI-1], part.Text.[idx endI..]
                                 [
-                                        yield {StartIdx = part.StartIdx; EndIdx = endI; SpanId = Some sourceInfo.Id; Text = text1}
-                                        yield { StartIdx = endI+1; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text2 }
+                                        yield {StartIdx = part.StartIdx; EndIdx = endI-1; SpanId = Some sourceInfo.Id; Text = text1}
+                                        yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text2 }
                                 ]
                             else if part.StartIdx < startI && part.EndIdx < endI then
                                 let text1, text2 = part.Text.[0..idx startI], part.Text.[idx startI+1..]
                                 [
-                                        yield {StartIdx = part.StartIdx; EndIdx = startI; SpanId = part.SpanId; Text = text1}
-                                        yield { StartIdx = startI+1; EndIdx = part.EndIdx; SpanId = Some sourceInfo.Id; Text = text2 }
+                                        yield {StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1}
+                                        yield { StartIdx = startI; EndIdx = part.EndIdx; SpanId = Some sourceInfo.Id; Text = text2 }
                                 ]                            
                             else [part]
                         )
@@ -223,10 +225,16 @@ let view (model:Model) (dispatch: Msg -> unit) =
     [
         div [ ClassName "container" ] [
             yield h1 [] [ str (model.Heading) ]
-            yield div [ ] [
-                for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                    yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection model))) 
-                              Id (string idx) ]  (viewParagraph model idx paragraph) 
+            yield div [ ClassName "article" ] [
+                div [ ClassName "article-highlights" ] [
+                    for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
+                        yield p [ ]  (viewParagraphHighlights model idx paragraph) 
+                ]
+                div [ ClassName "article-text" ] [
+                    for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
+                        yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection model))) 
+                                  Id (string idx) ]  [ str paragraph ] 
+                ]
             ]
             yield hr []
         ]
@@ -266,14 +274,14 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | TextSelected x ->
         match x with
         | Some (id, selection) ->
-            Browser.console.log("Text selected:")
-            Browser.console.log(selection)
             if model.SourceInfo.Length < id+1 
             then 
                 Browser.console.log("Source not added!")
                 model, Cmd.none, NoOp
             else
                 let modelInfo = model.SourceInfo
+
+
                 let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
                 modelInfo.[id] <- newInfoItem
 
