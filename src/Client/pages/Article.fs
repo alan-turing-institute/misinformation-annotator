@@ -34,7 +34,7 @@ type Model = {
     //HighlightedText: string [][]
     Link: string
     Tags: string list
-    Q1_MentionsSources: bool option
+    Q0_MentionsSources: bool option
     SourceInfo : SourceInfo []
     SourceSelectionMode : int option // id of the source that's being annotated
 }
@@ -45,7 +45,7 @@ type Msg =
     | FetchError of exn
     | FetchArticle
     | TextSelected of (int*Selection) option
-    | Q1_MentionsSources of bool
+    | Q0_MentionsSources of bool
     | HighlightSource of int
     | FinishedHighlighting
     | ClearHighlights of int
@@ -91,7 +91,7 @@ let init (user:UserData) (article: Article)  =
       Text = match article.Text with | Some t -> t | None -> [||]
       Tags = []
       Link = article.Link 
-      Q1_MentionsSources = None 
+      Q0_MentionsSources = None 
       SourceInfo = [||]
       SourceSelectionMode = None }, 
     postArticleCmd article 
@@ -130,18 +130,28 @@ let getSelection (model: Model) =
                Text = jsExtractText(rawOutput)}) |> Some
         | _ -> None
     
-let viewAddSource model n (dispatch: Msg -> unit) =
+let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
     [
-        h5 [] [ str ("Source number " + string n) ]
+        h4 [] [ str ("Source number " + string (n+1)) ]
         ol [ ] [
             li [ ] 
                [ str "Highlight the portion of the text where you find the source."
                  br []
-                 str "There may be multiple sections in the text that refer to the same source."
+                 str "There may be multiple sections in the text that refer to the same source. Click Start to start highlighting, and Finish to complete highlighting."
                  br []
-                 button [ OnClick (fun _ -> dispatch (HighlightSource n)) ] [ str "Start" ]
-                 button [ OnClick (fun _ -> dispatch (FinishedHighlighting)) ] [ str "Finished" ]
-                 button [ OnClick (fun _ -> dispatch (ClearHighlights n)) ] [ str "Clear highlights" ] ]
+                 button [ OnClick (fun _ -> dispatch (HighlightSource n))
+                          (match model.SourceSelectionMode with
+                           | Some _ -> ClassName "btn btn-disabled" 
+                           | None -> ClassName "btn btn-primary") ] 
+                          [ str "Start" ]
+                 button [ OnClick (fun _ -> dispatch (FinishedHighlighting))
+                          (match model.SourceSelectionMode with
+                           | Some _ -> ClassName "btn btn-primary" 
+                           | None -> ClassName "btn btn-disabled") ] 
+                          [ str "Finish" ]
+                 button [ OnClick (fun _ -> dispatch (ClearHighlights n)) 
+                          ClassName "btn btn-secondary" ] 
+                          [ str "Clear highlights" ] ]
         ]
         button [
             ClassName "btn btn-info"
@@ -240,20 +250,20 @@ let view (model:Model) (dispatch: Msg -> unit) =
             yield hr []
         ]
         div [ ClassName "container questionnaire" ] [
-            h5 [] [ str "Does the article mention any sources?" ]
-            button [ OnClick (fun _ -> dispatch (Q1_MentionsSources true)) 
-                     (match model.Q1_MentionsSources with
+            h4 [] [ str "Does the article mention any sources?" ]
+            button [ OnClick (fun _ -> dispatch (Q0_MentionsSources true)) 
+                     (match model.Q0_MentionsSources with
                       | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
                       | None -> ClassName "btn btn-light") ]
                    [ str "Yes" ]
-            button [ (match model.Q1_MentionsSources with
+            button [ (match model.Q0_MentionsSources with
                       | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
                       | None -> ClassName "btn btn-light")
-                     OnClick (fun _ -> dispatch (Q1_MentionsSources false)) ]
+                     OnClick (fun _ -> dispatch (Q0_MentionsSources false)) ]
                    [ str "No" ]
         ]
         div [ClassName "container"] (
-            match model.Q1_MentionsSources with
+            match model.Q0_MentionsSources with
               | None | Some false ->  []
               | Some true ->
                    viewAddSource model 0 dispatch
@@ -303,8 +313,8 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | FetchError e ->
         model, Cmd.none, NoOp
 
-    | Q1_MentionsSources x ->
-        { model with Q1_MentionsSources = Some x; SourceInfo = [| { Id = 0; TextMentions = [] } |] },
+    | Q0_MentionsSources x ->
+        { model with Q0_MentionsSources = Some x; SourceInfo = [| { Id = 0; TextMentions = [] } |] },
         Cmd.none, NoOp
 
     | HighlightSource n ->
