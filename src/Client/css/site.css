@@ -207,3 +207,13 @@ body {
     color: white;
 }
 
+.article-text {
+    position: static;
+    top: 0;
+    left: 0;
+    z-index: 0;
+}
+
+.questionnaire {
+    position: static;
+}

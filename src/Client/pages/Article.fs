@@ -180,9 +180,10 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string)  =
                     paragraphParts'
                     |> List.collect (fun part -> 
                             let idx i = i - part.StartIdx   
-                            if part.StartIdx >= startI && part.EndIdx <= endI then
+                            if (part.StartIdx > endI) || (part.EndIdx < startI) then [part] else
+                            if part.StartIdx >= startI && part.EndIdx <= endI-1 then
                                 [ { part with SpanId = Some sourceInfo.Id } ] 
-                            else if part.StartIdx <= startI && part.EndIdx >= endI then
+                            else if part.StartIdx <= startI && part.EndIdx >= endI-1 then
                                 let text1,text2,text3 = 
                                     part.Text.[0.. idx startI-1], 
                                     part.Text.[idx startI .. idx endI-1], 
@@ -195,13 +196,13 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string)  =
                                     if text3 <> "" then
                                         yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text3 }
                                 ]
-                            else if part.StartIdx > startI && part.EndIdx > endI then
+                            else if part.StartIdx > startI && part.EndIdx > endI-1 then
                                 let text1, text2 = part.Text.[0..idx endI-1], part.Text.[idx endI..]
                                 [
                                         yield {StartIdx = part.StartIdx; EndIdx = endI-1; SpanId = Some sourceInfo.Id; Text = text1}
                                         yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text2 }
                                 ]
-                            else if part.StartIdx < startI && part.EndIdx < endI then
+                            else if part.StartIdx < startI && part.EndIdx < endI-1 then
                                 let text1, text2 = part.Text.[0..idx startI], part.Text.[idx startI+1..]
                                 [
                                         yield {StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1}
@@ -238,7 +239,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
             ]
             yield hr []
         ]
-        div [ ClassName "container" ] [
+        div [ ClassName "container questionnaire" ] [
             h5 [] [ str "Does the article mention any sources?" ]
             button [ OnClick (fun _ -> dispatch (Q1_MentionsSources true)) 
                      (match model.Q1_MentionsSources with
