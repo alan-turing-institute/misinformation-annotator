@@ -30,8 +30,7 @@ type SourceInfo = {
 
 type Model = {
     Heading: string
-    Text: string []
-    //HighlightedText: string [][]
+    Text: string [] 
     Link: string
     Tags: string list
     Q0_MentionsSources: bool option
@@ -49,6 +48,7 @@ type Msg =
     | HighlightSource of int
     | FinishedHighlighting
     | ClearHighlights of int
+    | AddSource of int
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -131,7 +131,7 @@ let getSelection (model: Model) =
         | _ -> None
     
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
-    [
+    div [ClassName "container"] [
         h4 [] [ str ("Source number " + string (n+1)) ]
         ol [ ] [
             li [ ] 
@@ -141,22 +141,18 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                  br []
                  button [ OnClick (fun _ -> dispatch (HighlightSource n))
                           (match model.SourceSelectionMode with
-                           | Some _ -> ClassName "btn btn-disabled" 
+                           | Some i -> ClassName "btn btn-disabled" 
                            | None -> ClassName "btn btn-primary") ] 
                           [ str "Start" ]
                  button [ OnClick (fun _ -> dispatch (FinishedHighlighting))
                           (match model.SourceSelectionMode with
-                           | Some _ -> ClassName "btn btn-primary" 
+                           | Some i -> if i = n then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
                            | None -> ClassName "btn btn-disabled") ] 
                           [ str "Finish" ]
                  button [ OnClick (fun _ -> dispatch (ClearHighlights n)) 
                           ClassName "btn btn-secondary" ] 
                           [ str "Clear highlights" ] ]
         ]
-        button [
-            ClassName "btn btn-info"
-            OnClick (fun _ -> ()) ] 
-            [ str "+ Add additional source"]
     ]
 
 type ParagraphPart = {
@@ -234,7 +230,8 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string)  =
 
 let view (model:Model) (dispatch: Msg -> unit) =
     [
-        div [ ClassName "container" ] [
+        yield 
+          div [ ClassName "container" ] [
             yield h1 [] [ str (model.Heading) ]
             yield div [ ClassName "article" ] [
                 div [ ClassName "article-highlights" ] [
@@ -249,7 +246,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
             ]
             yield hr []
         ]
-        div [ ClassName "container questionnaire" ] [
+        yield
+          div [ ClassName "container questionnaire" ] [
             h4 [] [ str "Does the article mention any sources?" ]
             button [ OnClick (fun _ -> dispatch (Q0_MentionsSources true)) 
                      (match model.Q0_MentionsSources with
@@ -262,12 +260,16 @@ let view (model:Model) (dispatch: Msg -> unit) =
                      OnClick (fun _ -> dispatch (Q0_MentionsSources false)) ]
                    [ str "No" ]
         ]
-        div [ClassName "container"] (
-            match model.Q0_MentionsSources with
-              | None | Some false ->  []
-              | Some true ->
-                   viewAddSource model 0 dispatch
-        )
+        match model.Q0_MentionsSources with
+          | None | Some false ->  ()
+          | Some true ->
+               for i in 0..model.SourceInfo.Length-1 do
+                    yield viewAddSource model i dispatch
+               yield 
+                  button [
+                    ClassName "btn btn-info"
+                    OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ] 
+                    [ str "+ Add additional source"]
 
     ]
 
@@ -326,10 +328,14 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | ClearHighlights n ->
         let currentSources = model.SourceInfo
-        if currentSources.Length <= n+1 then 
+        if n < currentSources.Length then 
             currentSources.[n] <- { currentSources.[n] with TextMentions = [] }
             { model with SourceInfo = currentSources }, Cmd.none, NoOp
         else 
             Browser.console.log("Clear highlights from source " + string n + " but source not found.")
             model, Cmd.none, NoOp        
 
+    | AddSource n ->
+        let currentSources = model.SourceInfo
+        { model with SourceInfo = Array.append currentSources [| { Id = n; TextMentions = [] } |] }, 
+        Cmd.none, NoOp
