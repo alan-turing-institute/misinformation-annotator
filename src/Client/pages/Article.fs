@@ -35,7 +35,7 @@ type Model = {
     Tags: string list
     Q0_MentionsSources: bool option
     SourceInfo : SourceInfo []
-    SourceSelectionMode : int option // id of the source that's being annotated
+    SourceSelectionMode : int option // id of the source that's being currently annotated
 }
 
 type Msg = 
@@ -132,7 +132,7 @@ let getSelection (model: Model) =
     
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
     div [ClassName "container"] [
-        h4 [] [ str ("Source number " + string (n+1)) ]
+        h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
         ol [ ] [
             li [ ] 
                [ str "Highlight the portion of the text where you find the source."
@@ -246,30 +246,30 @@ let view (model:Model) (dispatch: Msg -> unit) =
             ]
             yield hr []
         ]
-        yield
-          div [ ClassName "container questionnaire" ] [
-            h4 [] [ str "Does the article mention any sources?" ]
-            button [ OnClick (fun _ -> dispatch (Q0_MentionsSources true)) 
-                     (match model.Q0_MentionsSources with
-                      | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
-                      | None -> ClassName "btn btn-light") ]
-                   [ str "Yes" ]
-            button [ (match model.Q0_MentionsSources with
-                      | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
-                      | None -> ClassName "btn btn-light")
-                     OnClick (fun _ -> dispatch (Q0_MentionsSources false)) ]
-                   [ str "No" ]
-        ]
-        match model.Q0_MentionsSources with
-          | None | Some false ->  ()
+
+        yield div [ ClassName "container questionnaire" ] [
+          match model.Q0_MentionsSources with
+          | None ->
+            yield h4 [] [ str "Does the article mention any sources?" ]
+            yield button [ OnClick (fun _ -> dispatch (Q0_MentionsSources true)) 
+                           (match model.Q0_MentionsSources with
+                            | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
+                            | None -> ClassName "btn btn-light") ]
+                         [ str "Yes" ]
+            yield button [ (match model.Q0_MentionsSources with
+                            | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
+                            | None -> ClassName "btn btn-light")
+                           OnClick (fun _ -> dispatch (Q0_MentionsSources false)) ]
+                         [ str "No" ]
+          | Some false ->  ()
           | Some true ->
-               for i in 0..model.SourceInfo.Length-1 do
-                    yield viewAddSource model i dispatch
-               yield 
-                  button [
+             for i in 0..model.SourceInfo.Length-1 do
+                  yield viewAddSource model i dispatch
+             yield button [
                     ClassName "btn btn-info"
                     OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ] 
                     [ str "+ Add additional source"]
+        ]
 
     ]
 
