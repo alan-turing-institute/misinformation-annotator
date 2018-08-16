@@ -223,3 +223,23 @@ body {
     padding-bottom:5px;
     font-weight:700;   
 } 
+.question1 {
+    border-bottom:10px solid #fdcdac;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question2 {
+    border-bottom:10px solid #cbd5e8;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question3 {
+    border-bottom:10px solid #f4cae4;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question4 {
+    border-bottom:10px solid #e6f5c9;
+    padding-bottom:5px;
+    font-weight:700;   
+} 

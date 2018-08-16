@@ -13,8 +13,8 @@ type DatabaseType =
     | AzureStorage of connectionString : AzureConnection
 
 type IDatabaseFunctions =
-    abstract member LoadAnnotations : string -> Task<Domain.Annotations>
-    abstract member SaveAnnotations : Domain.Annotations -> Task<unit>
+    abstract member LoadAnnotations : string -> Task<Domain.ArticleList>
+    abstract member SaveAnnotations : Domain.ArticleList -> Task<unit>
     abstract member GetLastResetTime : unit -> Task<System.DateTime>
     abstract member LoadArticle : string -> Task<Domain.Article>
 

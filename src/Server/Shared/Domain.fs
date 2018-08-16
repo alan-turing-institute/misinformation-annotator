@@ -25,16 +25,16 @@ type ArticleText = string []
 /// The data for each article in /api/annotations
 type Article =
     { Title: string
-      Link: string 
+      ID: string 
       Text: ArticleText option } // maybe can remove text from here
 
     static member empty =
         { Title = ""
-          Link = "" 
+          ID = "" 
           Text = None }                    
 
 /// The logical representation of the data for /api/annotations
-type Annotations =
+type ArticleList =
     { UserName : string
       Articles : Article list }
 
@@ -46,3 +46,6 @@ type Annotations =
 
 type AnnotationsResetDetails =
     { Time : DateTime }
+
+
+

@@ -54,23 +54,8 @@ type ExternalMsg =
     | DisplayArticle of Article
     | NoOp    
 
-(*
-let getArticle token =
-    promise {
-        let url = ServerUrls.APIUrls.Article
-        let props =
-            [ Fetch.requestHeaders [
-                HttpRequestHeaders.Authorization ("Bearer " + token) ]]
 
-        return! Fetch.fetchAs<Article> url props
-    }
-
-let loadArticleCmd token =
-    Cmd.ofPromise getArticle token FetchedArticle FetchError
-*)
-
-
-let postArticle (article : Domain.Article) =
+let fetchArticle (article : Domain.Article) =
     promise {
         let url = ServerUrls.APIUrls.Article
         let body = toJson article
@@ -83,24 +68,43 @@ let postArticle (article : Domain.Article) =
         return! Fetch.fetchAs<Article> url props          
     }
 
-let postArticleCmd article = 
-    Cmd.ofPromise postArticle article FetchedArticle FetchError
+let fetchArticleCmd article = 
+    Cmd.ofPromise fetchArticle article FetchedArticle FetchError
+
+
+
+let postArticleAnnotations (model : Model) =
+    promise {
+        let url = ServerUrls.APIUrls.Article
+        let body = toJson model.SourceInfo // todo - what information to actually post? New type for annotations
+        let props =             
+            [ RequestProperties.Method HttpMethod.POST
+              Fetch.requestHeaders [
+              //HttpRequestHeaders.Authorization ("Bearer " + token)
+              HttpRequestHeaders.ContentType "application/json" ]
+              RequestProperties.Body !^body ]
+        return! Fetch.fetchAs<> url props
+    }
+
 
 let init (user:UserData) (article: Article)  = 
     { Heading = article.Title
       Text = match article.Text with | Some t -> t | None -> [||]
       Tags = []
-      Link = article.Link 
+      Link = article.ID 
       Q0_MentionsSources = None 
       SourceInfo = [||]
       SourceSelectionMode = None }, 
-    postArticleCmd article 
+    fetchArticleCmd article 
 
 [<Emit("window.getSelection()")>]
 let jsGetSelection () : obj = jsNative    
 
 [<Emit("$0.toString()")>]
 let jsExtractText (selection: obj) : string = jsNative
+
+[<Emit("window.getSelection().removeAllRanges()")>]
+let jsRemoveSelection() = jsNative
 
 let getSelection (model: Model) = 
     Browser.console.log(jsGetSelection())
@@ -122,6 +126,7 @@ let getSelection (model: Model) =
                 else 
                     endParagraph, endIdx, startParagraph, startIdx
 
+            jsRemoveSelection()
             (id, 
              { StartParagraphIdx = startP
                StartIdx = startI
@@ -278,7 +283,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
     | FetchArticle -> 
-        model, postArticleCmd { Article.Title = model.Heading; Link = model.Link; Text = None }, NoOp
+        model, fetchArticleCmd { Article.Title = model.Heading; ID = model.Link; Text = None }, NoOp
         
     | View -> 
         Browser.console.log("View message in update")

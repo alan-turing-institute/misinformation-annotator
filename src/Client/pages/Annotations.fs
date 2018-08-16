@@ -15,7 +15,7 @@ open Style
 open System
 
 type Model =
-  { Annotations : Annotations
+  { Annotations : ArticleList
     Token : string
     UserName : string
     ResetTime : DateTime option
@@ -25,7 +25,7 @@ type Model =
 /// The different messages processed when interacting with the wish list
 type Msg =
     | LoadForUser of string
-    | FetchedAnnotations of Annotations
+    | FetchedAnnotations of ArticleList
     | FetchedResetTime of DateTime
     | FetchError of exn
     | SelectArticle of Article
@@ -42,7 +42,7 @@ let getAnnotations token =
             [ Fetch.requestHeaders [
                 HttpRequestHeaders.Authorization ("Bearer " + token) ]]
 
-        return! Fetch.fetchAs<Annotations> url props
+        return! Fetch.fetchAs<ArticleList> url props
     }
 
 let getResetTime token =
@@ -74,7 +74,7 @@ let postAnnotations (token,annotations) =
                 HttpRequestHeaders.ContentType "application/json" ]
               RequestProperties.Body !^body ]
 
-        return! Fetch.fetchAs<Annotations> url props
+        return! Fetch.fetchAs<ArticleList> url props
     }
 
 let postAnnotationsCmd (token,annotations) =
@@ -82,7 +82,7 @@ let postAnnotationsCmd (token,annotations) =
 
 
 let init (user:UserData) =
-    { Annotations = Annotations.New user.UserName
+    { Annotations = ArticleList.New user.UserName
       Token = user.Token
       UserName = user.UserName
       ResetTime = None
@@ -117,7 +117,7 @@ type [<Pojo>] ArticleProps = { key: string; article: Article; viewArticle: unit 
 let articleComponent { article = article; viewArticle = viewArticle } =
   tr [] [
     td [] [
-        if String.IsNullOrWhiteSpace article.Link then
+        if String.IsNullOrWhiteSpace article.ID then
             yield str article.Title
         else
             yield str article.Title 

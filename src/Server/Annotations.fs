@@ -8,7 +8,7 @@ open ServerCode.Domain
 open ServerTypes
 
 /// Handle the GET on /api/annotations
-let getAnnotations (getArticleFromDB : string -> Task<Annotations>) (token : UserRights) : HttpHandler =
+let getAnnotations (getArticleFromDB : string -> Task<ArticleList>) (token : UserRights) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
             let! annotations = getArticleFromDB token.UserName
@@ -23,10 +23,10 @@ let inline private forbiddenAnnotations username =
     |> RequestErrors.FORBIDDEN
 
 /// Handle the POST on /api/annotations
-let postAnnotations (saveAnnotationsToDB: Annotations -> Task<unit>) (token : UserRights) : HttpHandler =
+let postAnnotations (saveAnnotationsToDB: ArticleList -> Task<unit>) (token : UserRights) : HttpHandler =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! annotations = ctx.BindJsonAsync<Domain.Annotations>()
+            let! annotations = ctx.BindJsonAsync<Domain.ArticleList>()
 
             match token.UserName.Equals annotations.UserName with
             | true ->  return! invalidAnnotations next ctx

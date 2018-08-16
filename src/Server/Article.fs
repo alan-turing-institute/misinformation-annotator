@@ -12,7 +12,7 @@ let getArticle (loadArticleFromDB : string -> Task<Domain.Article>) : HttpHandle
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
             let! article = ctx.BindModelAsync<Domain.Article>()
-            let! fullArticle = loadArticleFromDB article.Link
+            let! fullArticle = loadArticleFromDB article.ID
             //let! article = loadArticleFromDB article.Link
             return! ctx.WriteJsonAsync fullArticle
         }
