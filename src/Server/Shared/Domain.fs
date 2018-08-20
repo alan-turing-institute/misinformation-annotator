@@ -47,5 +47,24 @@ type ArticleList =
 type AnnotationsResetDetails =
     { Time : DateTime }
 
+type Selection = {
+    StartParagraphIdx: int
+    EndParagraphIdx : int
+    StartIdx : int  // within parent paragraph
+    EndIdx: int     // within parent paragraph
+    Text: string
+}
 
+// Information regarding information sources from articles
+type SourceInfo = {
+    TextMentions : Selection list
+    Id : int
+}
 
+type ArticleAnnotations =
+  { Title: string
+    ID: string // link
+    Annotations: SourceInfo [] }
+
+type AnswersResponse = 
+  { Success : bool }

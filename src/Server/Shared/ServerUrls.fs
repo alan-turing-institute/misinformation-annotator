@@ -17,3 +17,8 @@ module APIUrls =
   let Login = "/api/users/login/"
   [<Literal>]
   let Article = "/api/article/"
+
+  (*
+  [<Literal>]
+  let Answers = "/api/answers/"
+  *)

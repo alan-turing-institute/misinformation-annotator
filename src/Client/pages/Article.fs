@@ -14,19 +14,8 @@ open ServerCode.Domain
 open Style
 open System
 
-type Selection = {
-    StartParagraphIdx: int
-    EndParagraphIdx : int
-    StartIdx : int  // within parent paragraph
-    EndIdx: int     // within parent paragraph
-    Text: string
-}
 
-// Information regarding information sources from articles
-type SourceInfo = {
-    TextMentions : Selection list
-    Id : int
-}
+
 
 type Model = {
     Heading: string
@@ -72,7 +61,7 @@ let fetchArticleCmd article =
     Cmd.ofPromise fetchArticle article FetchedArticle FetchError
 
 
-
+(*
 let postArticleAnnotations (model : Model) =
     promise {
         let url = ServerUrls.APIUrls.Article
@@ -83,10 +72,22 @@ let postArticleAnnotations (model : Model) =
               //HttpRequestHeaders.Authorization ("Bearer " + token)
               HttpRequestHeaders.ContentType "application/json" ]
               RequestProperties.Body !^body ]
-        return! Fetch.fetchAs<> url props
+        return! Fetch.fetchAs<Annotations> url props
     }
 
-
+let postAnswers (model: Model) = 
+    promise {
+        let url = ServerUrls.APIUrls.Answers
+        let body = toJson model.SourceInfo
+        let! response = 
+            Fetch.postRecord url { 
+                Title = model.Heading; 
+                ID = model.Link; 
+                Annotations = model.SourceInfo }
+        let! resp = response.json<AnswersResponse>()
+        
+        return resp }
+*)
 let init (user:UserData) (article: Article)  = 
     { Heading = article.Title
       Text = match article.Text with | Some t -> t | None -> [||]

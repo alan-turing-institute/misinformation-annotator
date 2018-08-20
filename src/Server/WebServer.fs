@@ -35,5 +35,6 @@ let webApp databaseType root =
             route APIUrls.Login Auth.login
             route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.postAnnotations db.SaveAnnotations))
             route APIUrls.Article (Article.getArticle db.LoadArticle)
+            route APIUrls.Answers (Article.postAnswers)
         ]
     ]
