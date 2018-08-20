@@ -38,6 +38,7 @@ type Msg =
     | FinishedHighlighting
     | ClearHighlights of int
     | AddSource of int
+    | SubmitAnnotations
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -277,6 +278,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     ClassName "btn btn-info"
                     OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ] 
                     [ str "+ Add additional source"]
+          yield button [ OnClick (fun _ -> dispatch (SubmitAnnotations)) ] [ str "Submit" ]
         ]
 
     ]
@@ -347,3 +349,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         let currentSources = model.SourceInfo
         { model with SourceInfo = Array.append currentSources [| { Id = n; TextMentions = [] } |] }, 
         Cmd.none, NoOp
+
+    | SubmitAnnotations ->
+        postAnswers model
+        model, Cmd.none, NoOp
