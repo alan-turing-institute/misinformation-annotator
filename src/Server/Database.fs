@@ -4,6 +4,7 @@ module ServerCode.Database
 open Microsoft.Azure.WebJobs
 open ServerCode.Storage.AzureTable
 open ServerCode
+open ServerCode.Domain
 open System.Threading.Tasks
 open FSharp.Control.Tasks.ContextInsensitive
 
@@ -14,7 +15,7 @@ type DatabaseType =
 
 type IDatabaseFunctions =
     abstract member LoadAnnotations : string -> Task<Domain.ArticleList>
-    abstract member SaveAnnotations : Domain.ArticleList -> Task<unit>
+    abstract member SaveAnnotations : Domain.ArticleAnnotations -> Task<unit>
     abstract member GetLastResetTime : unit -> Task<System.DateTime>
     abstract member LoadArticle : string -> Task<Domain.Article>
 

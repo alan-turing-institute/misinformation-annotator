@@ -69,11 +69,12 @@ let postArticleAnnotations (model : Model) =
         let props =             
             [ RequestProperties.Method HttpMethod.POST
               Fetch.requestHeaders [
-              //HttpRequestHeaders.Authorization ("Bearer " + token)
-              HttpRequestHeaders.ContentType "application/json" ]
-              RequestProperties.Body !^body ]
+                //HttpRequestHeaders.Authorization ("Bearer " + token)
+                HttpRequestHeaders.ContentType "application/json" ]
+                RequestProperties.Body !^body ]
         return! Fetch.fetchAs<Annotations> url props
     }
+*)
 
 let postAnswers (model: Model) = 
     promise {
@@ -83,11 +84,12 @@ let postAnswers (model: Model) =
             Fetch.postRecord url { 
                 Title = model.Heading; 
                 ID = model.Link; 
-                Annotations = model.SourceInfo }
+                Annotations = model.SourceInfo } []
         let! resp = response.json<AnswersResponse>()
         
         return resp }
-*)
+
+
 let init (user:UserData) (article: Article)  = 
     { Heading = article.Title
       Text = match article.Text with | Some t -> t | None -> [||]

@@ -14,16 +14,19 @@ let getArticles userName =
 
 let getAnnotationsFromDB userName =
     let fi = FileInfo(getJSONFileName userName)
-    if not fi.Exists then Defaults.defaultAnnotations userName
+    if not fi.Exists then Defaults.defaultArticles userName
     else
         File.ReadAllText(fi.FullName)
         |> FableJson.ofJson<ArticleList>
 
-let saveAnnotationsToDB annotations =
-    let fi = FileInfo(getJSONFileName annotations.UserName)
-    if not fi.Directory.Exists then
-        fi.Directory.Create()
-    File.WriteAllText(fi.FullName, FableJson.toJson annotations)
+let saveAnnotationsToDB (annotations: ArticleAnnotations) =
+    (*
+        let fi = FileInfo(getJSONFileName annotations.UserName)
+        if not fi.Directory.Exists then
+            fi.Directory.Create()
+        File.WriteAllText(fi.FullName, FableJson.toJson annotations)
+    *)
+    ()
 
 let getArticlesFromDB userName =
     let articles = getArticles userName

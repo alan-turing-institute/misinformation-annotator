@@ -48,8 +48,9 @@ let loadArticleFromDB connectionString article = task {
 
 
 /// Save to the database
-let saveAnnotationsToDB connectionString annotations = task {
-    let buildEntity userName article =
+let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = task {
+    (*
+    let buildEntity userName (article : Article) =
         let isAllowed = string >> @"/\#?".Contains >> not
         let entity = DynamicTableEntity()
         entity.PartitionKey <- userName
@@ -82,7 +83,10 @@ let saveAnnotationsToDB connectionString annotations = task {
 
     let! articlesTable = getArticlesTable connectionString
     let! _ = articlesTable.ExecuteBatchAsync batch
-    return () }
+    return () 
+    *)
+    return ()
+    }
 
 module private StateManagement =
     let getStateBlob (AzureConnection connectionString) name = task {
