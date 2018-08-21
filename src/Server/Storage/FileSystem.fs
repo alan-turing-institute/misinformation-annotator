@@ -26,7 +26,7 @@ let saveAnnotationsToDB (annotations: ArticleAnnotations) =
             fi.Directory.Create()
         File.WriteAllText(fi.FullName, FableJson.toJson annotations)
     *)
-    let fi = FileInfo(getJSONFileName "test")
+    let fi = FileInfo(getJSONFileName "test-output")
     File.AppendAllText(fi.FullName, FableJson.toJson annotations)
     ()
 

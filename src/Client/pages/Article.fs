@@ -39,6 +39,7 @@ type Msg =
     | ClearHighlights of int
     | AddSource of int
     | SubmitAnnotations
+    | Submitted of AnswersResponse
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -87,9 +88,10 @@ let postAnswers (model: Model) =
                 ID = model.Link; 
                 Annotations = model.SourceInfo } []
         let! resp = response.json<AnswersResponse>()
-        
         return resp }
 
+let postAnswersCmd model = 
+    Cmd.ofPromise postAnswers model Submitted FetchError
 
 let init (user:UserData) (article: Article)  = 
     { Heading = article.Title
@@ -303,8 +305,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                 model, Cmd.none, NoOp
             else
                 let modelInfo = model.SourceInfo
-
-
+                Browser.console.log(modelInfo.[id].TextMentions)
                 let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
                 modelInfo.[id] <- newInfoItem
 
@@ -329,7 +330,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with Q0_MentionsSources = Some x; SourceInfo = [| { Id = 0; TextMentions = [] } |] },
         Cmd.none, NoOp
 
-    | HighlightSource n ->
+    | HighlightSource n -> 
         { model with SourceSelectionMode = Some n }, 
         Cmd.none, NoOp
 
@@ -351,5 +352,10 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Cmd.none, NoOp
 
     | SubmitAnnotations ->
-        postAnswers model
+        model, postAnswersCmd model, NoOp
+
+    | Submitted resp ->
+        match resp.Success with 
+        | true -> Browser.console.log("Successfully submitted")
+        | false -> Browser.console.log("Unsuccessful")
         model, Cmd.none, NoOp

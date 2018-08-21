@@ -51,6 +51,6 @@ let postAnswers (saveToDB : ArticleAnnotations -> Task<unit>) : HttpHandler =
     fun (next: HttpFunc) (ctx: HttpContext) ->
         task {
             let! answers = ctx.BindJsonAsync<Domain.ArticleAnnotations>()
-
+            let! result = saveToDB answers
             return! ctx.WriteJsonAsync({ Success = true })
         }
