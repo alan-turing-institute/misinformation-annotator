@@ -132,13 +132,15 @@ let getSelection (model: Model) =
                 else 
                     endParagraph, endIdx, startParagraph, startIdx
 
-            jsRemoveSelection()
-            (id, 
-             { StartParagraphIdx = startP
+            let result = 
+             (id, { 
+               StartParagraphIdx = startP
                StartIdx = startI
                EndParagraphIdx = endP
                EndIdx = endI
-               Text = jsExtractText(rawOutput)}) |> Some
+               Text = jsExtractText(rawOutput)})
+            jsRemoveSelection()
+            result |> Some
         | _ -> None
     
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
@@ -305,6 +307,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                 model, Cmd.none, NoOp
             else
                 let modelInfo = model.SourceInfo
+                Browser.console.log("Text: ")
                 Browser.console.log(modelInfo.[id].TextMentions)
                 let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
                 modelInfo.[id] <- newInfoItem
