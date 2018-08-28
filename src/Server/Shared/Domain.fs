@@ -55,10 +55,12 @@ type Selection = {
     Text: string
 }
 
+type SourceId = int
+
 // Information regarding information sources from articles
 type SourceInfo = {
     TextMentions : Selection list
-    Id : int
+    Id : SourceId
 }
 
 type ArticleAnnotations =

@@ -14,9 +14,6 @@ open ServerCode.Domain
 open Style
 open System
 
-
-
-
 type Model = {
     Heading: string
     Text: string [] 
@@ -24,7 +21,8 @@ type Model = {
     Tags: string list
     Q0_MentionsSources: bool option
     SourceInfo : SourceInfo []
-    SourceSelectionMode : int option // id of the source that's being currently annotated
+    SourceSelectionMode : SourceId option // id of the source that's being currently annotated
+    ShowDeleteSelection : (SourceId * Selection) option
 }
 
 type Msg = 
@@ -32,7 +30,7 @@ type Msg =
     | FetchedArticle of Article
     | FetchError of exn
     | FetchArticle
-    | TextSelected of (int*Selection) option
+    | TextSelected of (SourceId *Selection) 
     | Q0_MentionsSources of bool
     | HighlightSource of int
     | FinishedHighlighting
@@ -40,6 +38,9 @@ type Msg =
     | AddSource of int
     | SubmitAnnotations
     | Submitted of AnswersResponse
+    | ShowDeleteButton of (SourceId *Selection) // TODO of source id and item id
+    | RemoveDeleteButton
+    | DeleteSelection of (SourceId * Selection)
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -100,8 +101,27 @@ let init (user:UserData) (article: Article)  =
       Link = article.ID 
       Q0_MentionsSources = None 
       SourceInfo = [||]
-      SourceSelectionMode = None }, 
+      SourceSelectionMode = None
+      ShowDeleteSelection = None }, 
     fetchArticleCmd article 
+
+let isInsideSelection paragraph position (sources: SourceInfo []) =
+    sources
+    |> Array.choose (fun source -> 
+        let selected =
+            source.TextMentions 
+            |> List.filter (fun (selection:Selection) ->
+                if selection.StartParagraphIdx = paragraph && selection.EndParagraphIdx = paragraph then
+                    position >= selection.StartIdx && position <= selection.EndIdx
+                else if selection.StartParagraphIdx = paragraph then 
+                    position >= selection.StartIdx 
+                else if selection.EndParagraphIdx = paragraph then
+                    position <= selection.EndIdx
+                else if selection.StartParagraphIdx < paragraph && selection.EndParagraphIdx > paragraph then
+                    true
+                else false)
+        if selected.Length > 0 then Some(source.Id, selected |> List.exactlyOne) else None)
+
 
 [<Emit("window.getSelection()")>]
 let jsGetSelection () : obj = jsNative    
@@ -112,14 +132,19 @@ let jsExtractText (selection: obj) : string = jsNative
 [<Emit("window.getSelection().removeAllRanges()")>]
 let jsRemoveSelection() = jsNative
 
-let getSelection (model: Model) = 
+type SelectionResult = 
+    | NoSelection
+    | NewHighlight of SourceId * Selection
+    | ClickHighlight of SourceId * Selection
+
+let getSelection (model: Model) e : SelectionResult = 
     Browser.console.log(jsGetSelection())
-    match model.SourceSelectionMode with
-    | None -> None
-    | Some id ->
-        let rawOutput = jsGetSelection()
-        match string (rawOutput?("type")) with
-        | "Range" -> 
+    let rawOutput = jsGetSelection()
+    match string (rawOutput?("type")) with
+    | "Range" -> 
+        match model.SourceSelectionMode with
+        | None -> NoSelection
+        | Some id ->
             let startParagraph = rawOutput?anchorNode?parentElement?id |> unbox<int>
             let endParagraph = rawOutput?focusNode?parentElement?id |> unbox<int>
             let startIdx = rawOutput?anchorOffset |> unbox<int>
@@ -139,9 +164,24 @@ let getSelection (model: Model) =
                EndParagraphIdx = endP
                EndIdx = endI
                Text = jsExtractText(rawOutput)})
+
             jsRemoveSelection()
-            result |> Some
-        | _ -> None
+            result |> NewHighlight
+    | "Caret" -> 
+        let paragraph = rawOutput?anchorNode?parentElement?id |> unbox<int>
+        let position = rawOutput?anchorOffset |> unbox<int>
+
+        let clickedSelection = 
+            model.SourceInfo 
+            |> isInsideSelection paragraph position 
+
+        if clickedSelection.Length = 0 then
+            NoSelection
+        else
+            let selected = clickedSelection |> Array.exactlyOne
+            ClickHighlight selected
+
+    | _ -> NoSelection
     
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
     div [ClassName "container"] [
@@ -175,7 +215,7 @@ type ParagraphPart = {
     Text : string
 }
 
-let viewParagraphHighlights (model: Model) paragraphIdx (text: string)  =
+let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch: Msg -> unit) =
     if model.SourceInfo.Length = 0 then [ str text ] else
 
     // split up into pieces first, add span attributes later
@@ -237,7 +277,9 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string)  =
     updatedParts
     |> List.map (fun part ->
         match part.SpanId with
-        | Some id -> span [ ClassName ("span" + string id) ] [ str part.Text ]
+        | Some id -> 
+            span [ ClassName ("span" + string id)
+                    ] [ str part.Text ]
         | None -> str part.Text)    
 
 
@@ -249,11 +291,17 @@ let view (model:Model) (dispatch: Msg -> unit) =
             yield div [ ClassName "article" ] [
                 div [ ClassName "article-highlights" ] [
                     for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                        yield p [ ]  (viewParagraphHighlights model idx paragraph) 
+                        yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) 
                 ]
                 div [ ClassName "article-text" ] [
                     for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                        yield p [ OnMouseUp (fun _ -> dispatch (TextSelected (getSelection model))) 
+                        yield p [ OnMouseUp (fun e -> 
+                                    match (getSelection model e) with
+                                    | NewHighlight(id, selection) -> dispatch (TextSelected (id,selection))
+                                    | ClickHighlight(position, selection) -> dispatch (ShowDeleteButton (position, selection))
+                                    | NoSelection -> () 
+                                    //dispatch (TextSelected (getSelection model)))
+                                    )
                                   Id (string idx) ]  [ str paragraph ] 
                 ]
             ]
@@ -285,6 +333,12 @@ let view (model:Model) (dispatch: Msg -> unit) =
           yield button [ OnClick (fun _ -> dispatch (SubmitAnnotations)) ] [ str "Submit" ]
         ]
 
+        match model.ShowDeleteSelection with
+        | Some (sourceId, selection) ->
+            yield div [ ClassName "DeleteButton" 
+                        OnClick (fun _ -> dispatch (DeleteSelection (sourceId, selection)))] [ str "Button!" ]
+        | None ->  ()
+
     ]
 
 
@@ -298,23 +352,19 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Browser.console.log("View message in update")
         model, Cmd.none, NoOp //DisplayArticle model.Article
 
-    | TextSelected x ->
-        match x with
-        | Some (id, selection) ->
-            if model.SourceInfo.Length < id+1 
-            then 
-                Browser.console.log("Source not added!")
-                model, Cmd.none, NoOp
-            else
-                let modelInfo = model.SourceInfo
-                Browser.console.log("Text: ")
-                Browser.console.log(modelInfo.[id].TextMentions)
-                let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
-                modelInfo.[id] <- newInfoItem
-
-                { model with SourceInfo = modelInfo }, Cmd.none, NoOp
-        | None -> 
+    | TextSelected (id, selection) ->
+        if model.SourceInfo.Length < id+1 
+        then 
+            Browser.console.log("Source not added!")
             model, Cmd.none, NoOp
+        else
+            let modelInfo = model.SourceInfo
+            Browser.console.log("Text: ")
+            Browser.console.log(modelInfo.[id].TextMentions)
+            let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
+            modelInfo.[id] <- newInfoItem
+
+            { model with SourceInfo = modelInfo }, Cmd.none, NoOp
 
     | FetchedArticle a ->
         Browser.console.log("Fetched article!")
@@ -361,4 +411,13 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         match resp.Success with 
         | true -> Browser.console.log("Successfully submitted")
         | false -> Browser.console.log("Unsuccessful")
+        model, Cmd.none, NoOp
+
+    | ShowDeleteButton selection ->
+        Browser.console.log("Mouse click on highlight!")
+
+        model, Cmd.none, NoOp
+
+    | RemoveDeleteButton ->
+        Browser.console.log("Mouse out")
         model, Cmd.none, NoOp
