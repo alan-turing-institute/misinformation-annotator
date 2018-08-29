@@ -121,7 +121,7 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
                     true
                 else false)
         // TODO - exactly one is not exactly one!
-        if selected.Length > 0 then Some(source.Id, selected |> List.exactlyOne) else None)
+        if selected.Length > 0 then Some(source.Id, selected |> List.head) else None)
 
 
 [<Emit("window.getSelection()")>]
@@ -141,6 +141,7 @@ type SelectionResult =
 let getSelection (model: Model) e : SelectionResult = 
     Browser.console.log(jsGetSelection())
     let rawOutput = jsGetSelection()
+
     match string (rawOutput?("type")) with
     | "Range" -> 
         match model.SourceSelectionMode with
@@ -299,7 +300,11 @@ let view (model:Model) (dispatch: Msg -> unit) =
     [
         yield 
           div [ ClassName "container"
-                OnMouseDown (fun _ -> dispatch RemoveDeleteButton) ] [
+                OnMouseDown (fun e -> 
+                    match model.ShowDeleteSelection with
+                    | Some _ -> e.preventDefault()
+                    | None -> ()
+                    dispatch RemoveDeleteButton) ] [
             yield h1 [] [ str (model.Heading) ]
             yield div [ ClassName "article" ] [
                 div [ ClassName "article-highlights" ] [
@@ -359,7 +364,14 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     ClassName "btn btn-info"
                     OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ] 
                     [ str "+ Add additional source"]
-          yield button [ OnClick (fun _ -> dispatch (SubmitAnnotations)) ] [ str "Submit" ]
+          yield 
+            div [] [
+                hr []
+                button 
+                    [ OnClick (fun _ -> dispatch (SubmitAnnotations))
+                      ClassName "btn btn-primary" ] 
+                    [ str "Submit" ]
+            ]
         ]
 
     ]
@@ -376,18 +388,22 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         model, Cmd.none, NoOp //DisplayArticle model.Article
 
     | TextSelected (id, selection) ->
-        if model.SourceInfo.Length < id+1 
-        then 
-            Browser.console.log("Source not added!")
-            model, Cmd.none, NoOp
-        else
-            let modelInfo = model.SourceInfo
-            Browser.console.log("Text: ")
-            Browser.console.log(modelInfo.[id].TextMentions)
-            let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
-            modelInfo.[id] <- newInfoItem
+        match model.ShowDeleteSelection with
+        | None ->
+            if model.SourceInfo.Length < id+1 
+            then 
+                Browser.console.log("Source not added!")
+                model, Cmd.none, NoOp
+            else
+                let modelInfo = model.SourceInfo
+                Browser.console.log("Text: ")
+                Browser.console.log(modelInfo.[id].TextMentions)
+                let newInfoItem = { modelInfo.[id] with TextMentions = selection::modelInfo.[id].TextMentions }
+                modelInfo.[id] <- newInfoItem
 
-            { model with SourceInfo = modelInfo }, Cmd.none, NoOp
+                { model with SourceInfo = modelInfo }, Cmd.none, NoOp
+        | Some _ -> 
+                { model with ShowDeleteSelection = None }, Cmd.none, NoOp            
 
     | FetchedArticle a ->
         Browser.console.log("Fetched article!")
