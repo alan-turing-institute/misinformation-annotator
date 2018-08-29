@@ -120,6 +120,7 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
                 else if selection.StartParagraphIdx < paragraph && selection.EndParagraphIdx > paragraph then
                     true
                 else false)
+        // TODO - exactly one is not exactly one!
         if selected.Length > 0 then Some(source.Id, selected |> List.exactlyOne) else None)
 
 
@@ -274,19 +275,31 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
                     paragraphParts' 
                 )
         )
+
     updatedParts
     |> List.map (fun part ->
         match part.SpanId with
         | Some id -> 
-            span [ ClassName ("span" + string id)
-                    ] [ str part.Text ]
+            match model.ShowDeleteSelection with
+            | Some (id', selection) -> 
+                if id' = id && selection.Text = part.Text then
+                    span [ ClassName ("span" + string id) ] [
+                        str part.Text
+                    ]
+                else
+                    span [ ClassName ("span" + string id)
+                            ] [ str part.Text ]
+            | None ->
+                span [ ClassName ("span" + string id)
+                      ] [ str part.Text ]
         | None -> str part.Text)    
 
 
 let view (model:Model) (dispatch: Msg -> unit) =
     [
         yield 
-          div [ ClassName "container" ] [
+          div [ ClassName "container"
+                OnMouseDown (fun _ -> dispatch RemoveDeleteButton) ] [
             yield h1 [] [ str (model.Heading) ]
             yield div [ ClassName "article" ] [
                 div [ ClassName "article-highlights" ] [
@@ -302,7 +315,23 @@ let view (model:Model) (dispatch: Msg -> unit) =
                                     | NoSelection -> () 
                                     //dispatch (TextSelected (getSelection model)))
                                     )
-                                  Id (string idx) ]  [ str paragraph ] 
+                                  Id (string idx) ]  [ 
+                                  match model.ShowDeleteSelection with 
+                                  | None -> 
+                                        yield str paragraph
+                                  | Some (id, selection) ->
+                                    if selection.EndParagraphIdx <> idx then
+                                        yield str paragraph 
+                                    else
+                                        let part1 = paragraph.[..selection.EndIdx-1]
+                                        let part2 = paragraph.[selection.EndIdx..]
+                                        yield span [] [ str part1 ]
+                                        yield button [ 
+                                               ClassName "btn btn-danger delete-highlight-btn" 
+                                               OnClick (fun _ -> dispatch (DeleteSelection (id, selection)))]
+                                               [ str "Delete" ]
+                                        yield span [] [ str part2 ]
+                                   ] 
                 ]
             ]
             yield hr []
@@ -332,12 +361,6 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     [ str "+ Add additional source"]
           yield button [ OnClick (fun _ -> dispatch (SubmitAnnotations)) ] [ str "Submit" ]
         ]
-
-        match model.ShowDeleteSelection with
-        | Some (sourceId, selection) ->
-            yield div [ ClassName "DeleteButton" 
-                        OnClick (fun _ -> dispatch (DeleteSelection (sourceId, selection)))] [ str "Button!" ]
-        | None ->  ()
 
     ]
 
@@ -415,9 +438,23 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | ShowDeleteButton selection ->
         Browser.console.log("Mouse click on highlight!")
-
-        model, Cmd.none, NoOp
+        { model with ShowDeleteSelection = Some selection },
+        Cmd.none, NoOp
 
     | RemoveDeleteButton ->
-        Browser.console.log("Mouse out")
-        model, Cmd.none, NoOp
+        { model with ShowDeleteSelection = None},
+        Cmd.none, NoOp
+
+    | DeleteSelection (id, selection : Selection) ->
+        Browser.console.log("Delete!!!")
+
+        let newHighlights = 
+            model.SourceInfo.[id].TextMentions
+            |> List.filter (fun s -> s <> selection)
+        let newSources = model.SourceInfo
+        newSources.[id] <- { model.SourceInfo.[id] with TextMentions = newHighlights }
+
+        { model with 
+            ShowDeleteSelection = None;
+            SourceInfo = newSources },
+        Cmd.none, NoOp
