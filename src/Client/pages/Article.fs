@@ -301,10 +301,13 @@ let view (model:Model) (dispatch: Msg -> unit) =
         yield 
           div [ ClassName "container"
                 OnMouseDown (fun e -> 
-                    match model.ShowDeleteSelection with
-                    | Some _ -> e.preventDefault()
-                    | None -> ()
-                    dispatch RemoveDeleteButton) ] [
+                    if not (e.target.ToString().Contains "delete-highlight-btn") then
+                        match model.ShowDeleteSelection with
+                        | Some _ -> 
+                            e.preventDefault()
+                        | None -> ()
+                        dispatch RemoveDeleteButton
+                    else ()) ] [
             yield h1 [] [ str (model.Heading) ]
             yield div [ ClassName "article" ] [
                 div [ ClassName "article-highlights" ] [
@@ -458,6 +461,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Cmd.none, NoOp
 
     | RemoveDeleteButton ->
+        Browser.console.log("Removing delete button")
         { model with ShowDeleteSelection = None},
         Cmd.none, NoOp
 
