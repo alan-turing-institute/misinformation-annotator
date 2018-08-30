@@ -24,12 +24,14 @@ type Model = {
     SourceInfo : SourceInfo []
     SourceSelectionMode : SourceId option // id of the source that's being currently annotated
     ShowDeleteSelection : (SourceId * Selection) option
+    Submitted : bool option
 }
 
 type Msg = 
     | View
-    | FetchedArticle of Article
+    | FetchedArticle of Article * ArticleAnnotations option
     | FetchError of exn
+    | SubmitError of exn
     | FetchArticle
     | TextSelected of (SourceId *Selection) 
     | Q0_MentionsSources of bool
@@ -58,7 +60,7 @@ let fetchArticle (article : Domain.Article, user : Domain.UserData) =
                 HttpRequestHeaders.Authorization ("Bearer " + user.Token)
                 HttpRequestHeaders.ContentType "application/json" ]
               RequestProperties.Body !^body ]
-        return! Fetch.fetchAs<Article> url props          
+        return! Fetch.fetchAs<Article * ArticleAnnotations option> url props          
     }
 
 let fetchArticleCmd article user = 
@@ -78,7 +80,7 @@ let postAnswers (model: Model) =
         return resp }
 
 let postAnswersCmd model = 
-    Cmd.ofPromise postAnswers model Submitted FetchError
+    Cmd.ofPromise postAnswers model Submitted SubmitError
 
 let init (user:UserData) (article: Article)  = 
     { 
@@ -90,7 +92,8 @@ let init (user:UserData) (article: Article)  =
       Q0_MentionsSources = None 
       SourceInfo = [||]
       SourceSelectionMode = None
-      ShowDeleteSelection = None }, 
+      ShowDeleteSelection = None 
+      Submitted = None }, 
     fetchArticleCmd article user
 
 let isInsideSelection paragraph position (sources: SourceInfo []) =
@@ -335,35 +338,41 @@ let view (model:Model) (dispatch: Msg -> unit) =
          ]
 
          yield div [ ClassName "container questionnaire sticky-top col-lg-6" ] [
-          match model.Q0_MentionsSources with
-          | None ->
-            yield h4 [] [ str "Does the article mention any sources?" ]
-            yield button [ OnClick (fun _ -> dispatch (Q0_MentionsSources true)) 
-                           (match model.Q0_MentionsSources with
-                            | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
-                            | None -> ClassName "btn btn-light") ]
-                         [ str "Yes" ]
-            yield button [ (match model.Q0_MentionsSources with
-                            | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
-                            | None -> ClassName "btn btn-light")
-                           OnClick (fun _ -> dispatch (Q0_MentionsSources false)) ]
-                         [ str "No" ]
-          | Some false ->  ()
+          match model.Submitted with
           | Some true ->
-             for i in 0..model.SourceInfo.Length-1 do
-                  yield viewAddSource model i dispatch
-             yield button [
-                    ClassName "btn btn-info"
-                    OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ] 
-                    [ str "+ Add additional source"]
-          yield 
-            div [] [
-                hr []
-                button 
-                    [ OnClick (fun _ -> dispatch (SubmitAnnotations))
-                      ClassName "btn btn-primary" ] 
-                    [ str "Submit" ]
-            ]
+               yield h5 [] [ str "Submitted" ]
+          | Some false | None ->              
+              match model.Q0_MentionsSources with
+              | None ->
+                yield h4 [] [ str "Does the article mention any sources?" ]
+                yield button [ OnClick (fun _ -> dispatch (Q0_MentionsSources true)) 
+                               (match model.Q0_MentionsSources with
+                                | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
+                                | None -> ClassName "btn btn-light") ]
+                             [ str "Yes" ]
+                yield button [ (match model.Q0_MentionsSources with
+                                | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
+                                | None -> ClassName "btn btn-light")
+                               OnClick (fun _ -> dispatch (Q0_MentionsSources false)) ]
+                             [ str "No" ]
+              | Some false ->  ()
+              | Some true ->
+                 for i in 0..model.SourceInfo.Length-1 do
+                      yield viewAddSource model i dispatch
+                 yield button [
+                        ClassName "btn btn-info"
+                        OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ] 
+                        [ str "+ Add additional source"]
+              yield 
+                div [] [
+                    yield hr []
+                    yield button 
+                        [ OnClick (fun _ -> dispatch (SubmitAnnotations))
+                          ClassName "btn btn-primary" ] 
+                        [ str "Submit" ]
+                    if model.Submitted = Some false then
+                        yield span [] [str "Cannot submit - please contact the admin."]
+                ]
         ]
         ]
       ]
@@ -401,14 +410,22 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         | Some _ -> 
                 { model with ShowDeleteSelection = None }, Cmd.none, NoOp            
 
-    | FetchedArticle a ->
+    | FetchedArticle (article, annotations) ->
         Browser.console.log("Fetched article!")
         
-        match a.Text with
+        match article.Text with
         | Some t ->         
             Browser.console.log(t.[0])
-            Browser.console.log("Trying to add article text to the model")
-            { model with Text = t }, Cmd.none, NoOp
+
+            match annotations with
+            | Some a -> 
+                if a.ArticleID = article.ID && a.User.UserName = model.User.UserName then
+                    { model with Text = t; SourceInfo = a.Annotations; Submitted = Some true }, Cmd.none, NoOp
+                else
+                    Browser.console.log("Annotations loaded for incorrect user.")
+                    { model with Text = t }, Cmd.none, NoOp
+            | None -> 
+                { model with Text = t }, Cmd.none, NoOp
         | None -> model, Cmd.none, NoOp
 
     | FetchError e ->
@@ -444,9 +461,14 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | Submitted resp ->
         match resp.Success with 
-        | true -> Browser.console.log("Successfully submitted")
-        | false -> Browser.console.log("Unsuccessful")
-        model, Cmd.none, NoOp
+        | true -> 
+            { model with Submitted = Some true }, Cmd.none, NoOp
+        | false -> 
+            { model with Submitted = Some false }, Cmd.none, NoOp
+    
+    | SubmitError e ->
+        { model with Submitted = Some false },
+        Cmd.none, NoOp
 
     | ShowDeleteButton selection ->
         Browser.console.log("Mouse click on highlight!")

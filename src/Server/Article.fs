@@ -8,14 +8,20 @@ open ServerCode.Domain
 open ServerTypes
 
 /// Handle the POST on /api/article
-let getArticle (loadArticleFromDB : string -> Task<Domain.Article>) (token : UserRights) : HttpHandler =
+let getArticle (loadArticleFromDB : string -> Task<Domain.Article>) (loadArticleAnnotationsFromDB : string -> string -> Task<Domain.ArticleAnnotations option>) (token : UserRights) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
             let! article = ctx.BindModelAsync<Domain.Article>()
             let! fullArticle = loadArticleFromDB article.ID
             // TODO: Load existing annotations for the user
+            let! articleAnnotation = loadArticleAnnotationsFromDB article.ID token.UserName
+            
+            match articleAnnotation with
+            | None -> return! ctx.WriteJsonAsync (fullArticle, None)
+            | Some a -> return! ctx.WriteJsonAsync (fullArticle, Some a)
+            
             //let! article = loadArticleFromDB article.Link
-            return! ctx.WriteJsonAsync fullArticle
+            //return! ctx.WriteJsonAsync fullArticle
         }
 
 //let private invalidArticle =

@@ -99,7 +99,9 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | FetchedAnnotations annotations ->
         Browser.console.log("Fetched annotations - adapting model")
-        let annotations = { annotations with Articles = annotations.Articles |> List.sortBy (fun b -> b.Title) }
+        Browser.console.log(annotations)
+        let annotations = 
+            { annotations with Articles = annotations.Articles |> List.sortBy (fun (article, anns) -> article.Title) }
         { model with Annotations = annotations }, Cmd.none, NoOp
 
     | FetchedResetTime datetime ->
@@ -112,9 +114,9 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with SelectedArticle = Some a }, Cmd.none, ViewArticle a
 
 
-type [<Pojo>] ArticleProps = { key: string; article: Article; viewArticle: unit -> unit }
+type [<Pojo>] ArticleProps = { key: string; article: Article; viewArticle: unit -> unit; annotated : bool }
 
-let articleComponent { article = article; viewArticle = viewArticle } =
+let articleComponent { article = article; viewArticle = viewArticle; annotated = annotated } =
   tr [] [
     td [] [
         if String.IsNullOrWhiteSpace article.ID then
@@ -123,7 +125,10 @@ let articleComponent { article = article; viewArticle = viewArticle } =
             yield str article.Title 
         ]
     td [] [
-           buttonLink "" viewArticle  [ str "Annotate" ] 
+        if annotated then
+           yield buttonLink "" viewArticle [ str "✅ View"] 
+        else  
+           yield buttonLink "" viewArticle  [ str "Annotate" ] 
       ]
     ]
 
@@ -143,11 +148,12 @@ let view (model:Model) (dispatch: Msg -> unit) =
             ]
             tbody [] [
                 model.Annotations.Articles
-                    |> List.map(fun article ->
+                    |> List.map(fun (article, annotated) ->
                         ArticleComponent {
                             key = article.Title
                             article = article
                             viewArticle = (fun _ -> dispatch (SelectArticle article))
+                            annotated = annotated
                         })
                     |> ofList
             ]

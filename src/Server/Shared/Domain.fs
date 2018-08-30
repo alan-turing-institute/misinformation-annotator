@@ -34,9 +34,10 @@ type Article =
           Text = None }                    
 
 /// The logical representation of the data for /api/annotations
+type Annotated = bool
 type ArticleList =
     { UserName : string
-      Articles : Article list }
+      Articles : (Article * Annotated) list }
 
     // Create a new Annotations.  This is supported in client code too,
     // thanks to the magic of https://www.nuget.org/packages/Fable.JsonConverter

@@ -38,12 +38,17 @@ let getAnnotationsFromDB connectionString userName = task {
             [ for result in results ->
                 { Title = result.Properties.["Title"].StringValue
                   ID = string result.Properties.["Link"].StringValue 
-                  Text = None} ] } }
+                  Text = None}, false ] } }
 
 /// load article from the database
 let loadArticleFromDB connectionString article = task {
    return
         { Title = ""; ID = ""; Text = None }
+    }
+
+let loadArticleAnnotationsFromDB articleId userName = task {
+    return 
+        None
     }
 
 
@@ -106,6 +111,8 @@ let getLastResetTime connectionString = task {
     do! blob.FetchAttributesAsync()
     return blob.Properties.LastModified |> Option.ofNullable |> Option.map (fun d -> d.UtcDateTime)
 }
+
+
 
 /// Clears all Annotationss and records the time that it occurred at.
 // let clearAnnotationss connectionString = task {

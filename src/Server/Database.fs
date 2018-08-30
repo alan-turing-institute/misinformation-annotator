@@ -18,6 +18,7 @@ type IDatabaseFunctions =
     abstract member SaveAnnotations : Domain.ArticleAnnotations -> Task<unit>
     abstract member GetLastResetTime : unit -> Task<System.DateTime>
     abstract member LoadArticle : string -> Task<Domain.Article>
+    abstract member LoadArticleAnnotations : string -> string -> Task<Domain.ArticleAnnotations option>
 
 /// Start the web server and connect to database
 let getDatabase databaseType startupTime =
@@ -30,12 +31,15 @@ let getDatabase databaseType startupTime =
             member __.SaveAnnotations annotations = Storage.AzureTable.saveAnnotationsToDB connection annotations
             member __.GetLastResetTime () = task {
                 let! resetTime = Storage.AzureTable.getLastResetTime connection
-                return resetTime |> Option.defaultValue startupTime } }
+                return resetTime |> Option.defaultValue startupTime } 
+            member __.LoadArticleAnnotations articleId userName = Storage.AzureTable.loadArticleAnnotationsFromDB articleId userName
+        }
 
     | DatabaseType.FileSystem ->
         { new IDatabaseFunctions with
             member __.LoadAnnotations key = task { return Storage.FileSystem.getArticlesFromDB key }
             member __.SaveAnnotations annotations = task { return Storage.FileSystem.saveAnnotationsToDB annotations }
             member __.GetLastResetTime () = task { return startupTime } 
-            member __.LoadArticle key = task { return Storage.FileSystem.loadArticleFromDB key }}
-
+            member __.LoadArticle key = task { return Storage.FileSystem.loadArticleFromDB key }
+            member __.LoadArticleAnnotations articleId userName = task { return Storage.FileSystem.loadArticleAnnotationsFromDB articleId userName } }
+            
