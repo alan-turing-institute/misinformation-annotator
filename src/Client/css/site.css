@@ -175,25 +175,25 @@ body {
     margin: 10px 10px 10px 10px;
 }
 
-.span0 {
-    background-color: #b3e2cd;
-}
+.span0 { background-color: #b3e2cd; }
 
-.span1 {
-    background-color: #fdcdac;
-}
+.span1 { background-color: #fdcdac; }
 
-.span2 {
-    background-color: #cbd5e8;
-}
+.span2 { background-color: #cbd5e8; }
 
-.span3 {
-    background-color: #f4cae4;
-}
+.span3 { background-color: #f4cae4; }
 
-.span4 {
-    background-color: #e6f5c9;
-}
+.span4 {background-color: #e6f5c9; }
+
+.span5 { background-color: #e3daa6; }
+
+.span6 { background-color: #b2df8a; }
+
+.span7 { background-color: #fb9a99; }
+
+.span8 { background-color: #fdbf6f; }
+
+.span9 {background-color: #cab2d6; }
 
 .article {
     position: relative;
@@ -239,6 +239,31 @@ body {
 } 
 .question4 {
     border-bottom:10px solid #e6f5c9;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question5 {
+    border-bottom:10px solid #e3daa6;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question6 {
+    border-bottom:10px solid #b2df8a;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question7 {
+    border-bottom:10px solid #fb9a99;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question8 {
+    border-bottom:10px solid #fdbf6f;
+    padding-bottom:5px;
+    font-weight:700;   
+} 
+.question9 {
+    border-bottom:10px solid #cab2d6;
     padding-bottom:5px;
     font-weight:700;   
 } 

@@ -171,7 +171,7 @@ let getSelection (model: Model) e : SelectionResult =
         if clickedSelection.Length = 0 then
             NoSelection
         else
-            let selected = clickedSelection |> Array.exactlyOne
+            let selected = clickedSelection |> Array.head
             ClickHighlight selected
 
     | _ -> NoSelection
@@ -269,6 +269,7 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
         )
 
     updatedParts
+    |> List.filter (fun part -> part.Text.Length > 0)
     |> List.map (fun part ->
         match part.SpanId with
         | Some id -> 
@@ -359,9 +360,13 @@ let view (model:Model) (dispatch: Msg -> unit) =
               | Some true ->
                  for i in 0..model.SourceInfo.Length-1 do
                       yield viewAddSource model i dispatch
-                 yield button [
-                        ClassName "btn btn-info"
-                        OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ] 
+                      
+                 yield button 
+                        (if model.SourceInfo.Length < 10 then 
+                            [ ClassName "btn btn-info"
+                              OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
+                         else
+                            [ ClassName "btn btn-disabled" ]) 
                         [ str "+ Add additional source"]
               yield 
                 div [] [
