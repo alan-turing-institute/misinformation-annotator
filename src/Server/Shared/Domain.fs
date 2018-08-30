@@ -60,12 +60,14 @@ type SourceId = int
 // Information regarding information sources from articles
 type SourceInfo = {
     TextMentions : Selection list
-    Id : SourceId
+    SourceID : SourceId
 }
 
 type ArticleAnnotations =
-  { Title: string
-    ID: string // link
+  { 
+    User: UserData
+    Title: string
+    ArticleID: string // article ID / link
     Annotations: SourceInfo [] }
 
 type AnswersResponse = 

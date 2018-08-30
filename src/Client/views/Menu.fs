@@ -11,8 +11,7 @@ let inline private clientView onLogout (model:Model) =
     div [ centerStyle "row" ] [
           yield viewLink Page.Home "Home"
           if model <> None then
-              yield viewLink Page.Annotations "Annotations"
-              yield viewLink Page.Article "Article"
+              yield viewLink Page.Annotations "All articles"
           if model = None then
               yield viewLink Page.Login "Login"
           else

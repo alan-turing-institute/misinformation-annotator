@@ -15,6 +15,7 @@ open Style
 open System
 
 type Model = {
+    User: UserData
     Heading: string
     Text: string [] 
     Link: string
@@ -38,7 +39,7 @@ type Msg =
     | AddSource of int
     | SubmitAnnotations
     | Submitted of AnswersResponse
-    | ShowDeleteButton of (SourceId *Selection) // TODO of source id and item id
+    | ShowDeleteButton of (SourceId * Selection) 
     | RemoveDeleteButton
     | DeleteSelection of (SourceId * Selection)
 
@@ -47,46 +48,31 @@ type ExternalMsg =
     | NoOp    
 
 
-let fetchArticle (article : Domain.Article) =
+let fetchArticle (article : Domain.Article, user : Domain.UserData) =
     promise {
         let url = ServerUrls.APIUrls.Article
         let body = toJson article
         let props = 
             [ RequestProperties.Method HttpMethod.POST
               Fetch.requestHeaders [
-//                HttpRequestHeaders.Authorization ("Bearer " + token)
+                HttpRequestHeaders.Authorization ("Bearer " + user.Token)
                 HttpRequestHeaders.ContentType "application/json" ]
               RequestProperties.Body !^body ]
         return! Fetch.fetchAs<Article> url props          
     }
 
-let fetchArticleCmd article = 
-    Cmd.ofPromise fetchArticle article FetchedArticle FetchError
+let fetchArticleCmd article user = 
+    Cmd.ofPromise fetchArticle (article, user) FetchedArticle FetchError
 
-
-(*
-let postArticleAnnotations (model : Model) =
-    promise {
-        let url = ServerUrls.APIUrls.Article
-        let body = toJson model.SourceInfo // todo - what information to actually post? New type for annotations
-        let props =             
-            [ RequestProperties.Method HttpMethod.POST
-              Fetch.requestHeaders [
-                //HttpRequestHeaders.Authorization ("Bearer " + token)
-                HttpRequestHeaders.ContentType "application/json" ]
-                RequestProperties.Body !^body ]
-        return! Fetch.fetchAs<Annotations> url props
-    }
-*)
 
 let postAnswers (model: Model) = 
     promise {
         let url = ServerUrls.APIUrls.Answers
-        let body = toJson model.SourceInfo
         let! response = 
             Fetch.postRecord url { 
-                Title = model.Heading; 
-                ID = model.Link; 
+                User = model.User
+                Title = model.Heading
+                ArticleID = model.Link
                 Annotations = model.SourceInfo } []
         let! resp = response.json<AnswersResponse>()
         return resp }
@@ -95,7 +81,9 @@ let postAnswersCmd model =
     Cmd.ofPromise postAnswers model Submitted FetchError
 
 let init (user:UserData) (article: Article)  = 
-    { Heading = article.Title
+    { 
+      User = user
+      Heading = article.Title
       Text = match article.Text with | Some t -> t | None -> [||]
       Tags = []
       Link = article.ID 
@@ -103,7 +91,7 @@ let init (user:UserData) (article: Article)  =
       SourceInfo = [||]
       SourceSelectionMode = None
       ShowDeleteSelection = None }, 
-    fetchArticleCmd article 
+    fetchArticleCmd article user
 
 let isInsideSelection paragraph position (sources: SourceInfo []) =
     sources
@@ -120,8 +108,8 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
                 else if selection.StartParagraphIdx < paragraph && selection.EndParagraphIdx > paragraph then
                     true
                 else false)
-        // TODO - exactly one is not exactly one!
-        if selected.Length > 0 then Some(source.Id, selected |> List.head) else None)
+        
+        if selected.Length > 0 then Some(source.SourceID, selected |> List.head) else None)
 
 
 [<Emit("window.getSelection()")>]
@@ -243,7 +231,7 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
                             let idx i = i - part.StartIdx   
                             if (part.StartIdx > endI) || (part.EndIdx < startI) then [part] else
                             if part.StartIdx >= startI && part.EndIdx <= endI-1 then
-                                [ { part with SpanId = Some sourceInfo.Id } ] 
+                                [ { part with SpanId = Some sourceInfo.SourceID } ] 
                             else if part.StartIdx <= startI && part.EndIdx >= endI-1 then
                                 let text1,text2,text3 = 
                                     part.Text.[0.. idx startI-1], 
@@ -253,21 +241,21 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
                                     if text1 <> "" then 
                                         yield { StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1 }
                                     if text2 <> "" then
-                                        yield { StartIdx = startI; EndIdx = endI-1; SpanId = Some sourceInfo.Id; Text = text2 }
+                                        yield { StartIdx = startI; EndIdx = endI-1; SpanId = Some sourceInfo.SourceID; Text = text2 }
                                     if text3 <> "" then
                                         yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text3 }
                                 ]
                             else if part.StartIdx > startI && part.EndIdx > endI-1 then
                                 let text1, text2 = part.Text.[0..idx endI-1], part.Text.[idx endI..]
                                 [
-                                        yield {StartIdx = part.StartIdx; EndIdx = endI-1; SpanId = Some sourceInfo.Id; Text = text1}
+                                        yield {StartIdx = part.StartIdx; EndIdx = endI-1; SpanId = Some sourceInfo.SourceID; Text = text1}
                                         yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text2 }
                                 ]
                             else if part.StartIdx < startI && part.EndIdx < endI-1 then
                                 let text1, text2 = part.Text.[0..idx startI], part.Text.[idx startI+1..]
                                 [
                                         yield {StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1}
-                                        yield { StartIdx = startI; EndIdx = part.EndIdx; SpanId = Some sourceInfo.Id; Text = text2 }
+                                        yield { StartIdx = startI; EndIdx = part.EndIdx; SpanId = Some sourceInfo.SourceID; Text = text2 }
                                 ]                            
                             else [part]
                         )
@@ -298,8 +286,10 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
 
 let view (model:Model) (dispatch: Msg -> unit) =
     [
-        yield 
-          div [ ClassName "container"
+      div [ ClassName "col-md-10"] [
+        div [ ClassName "row" ] [
+         yield 
+          div [ ClassName "container col-lg-6"
                 OnMouseDown (fun e -> 
                     if not (e.target.ToString().Contains "delete-highlight-btn") then
                         match model.ShowDeleteSelection with
@@ -321,7 +311,6 @@ let view (model:Model) (dispatch: Msg -> unit) =
                                     | NewHighlight(id, selection) -> dispatch (TextSelected (id,selection))
                                     | ClickHighlight(position, selection) -> dispatch (ShowDeleteButton (position, selection))
                                     | NoSelection -> () 
-                                    //dispatch (TextSelected (getSelection model)))
                                     )
                                   Id (string idx) ]  [ 
                                   match model.ShowDeleteSelection with 
@@ -343,9 +332,9 @@ let view (model:Model) (dispatch: Msg -> unit) =
                 ]
             ]
             yield hr []
-        ]
+         ]
 
-        yield div [ ClassName "container questionnaire" ] [
+         yield div [ ClassName "container questionnaire sticky-top col-lg-6" ] [
           match model.Q0_MentionsSources with
           | None ->
             yield h4 [] [ str "Does the article mention any sources?" ]
@@ -376,7 +365,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     [ str "Submit" ]
             ]
         ]
-
+        ]
+      ]
     ]
 
 
@@ -384,7 +374,10 @@ let view (model:Model) (dispatch: Msg -> unit) =
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
     | FetchArticle -> 
-        model, fetchArticleCmd { Article.Title = model.Heading; ID = model.Link; Text = None }, NoOp
+        model, 
+        fetchArticleCmd 
+            { Article.Title = model.Heading; ID = model.Link; Text = None } model.User,
+            NoOp
         
     | View -> 
         Browser.console.log("View message in update")
@@ -422,7 +415,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         model, Cmd.none, NoOp
 
     | Q0_MentionsSources x ->
-        { model with Q0_MentionsSources = Some x; SourceInfo = [| { Id = 0; TextMentions = [] } |] },
+        { model with Q0_MentionsSources = Some x; SourceInfo = [| { SourceID = 0; TextMentions = [] } |] },
         Cmd.none, NoOp
 
     | HighlightSource n -> 
@@ -443,7 +436,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | AddSource n ->
         let currentSources = model.SourceInfo
-        { model with SourceInfo = Array.append currentSources [| { Id = n; TextMentions = [] } |] }, 
+        { model with SourceInfo = Array.append currentSources [| { SourceID = n; TextMentions = [] } |] }, 
         Cmd.none, NoOp
 
     | SubmitAnnotations ->

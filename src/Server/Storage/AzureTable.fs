@@ -108,9 +108,9 @@ let getLastResetTime connectionString = task {
 }
 
 /// Clears all Annotationss and records the time that it occurred at.
-let clearAnnotationss connectionString = task {
-    let! table = getArticlesTable connectionString
-    let! _ = table.DeleteIfExistsAsync()
+// let clearAnnotationss connectionString = task {
+//     let! table = getArticlesTable connectionString
+//     let! _ = table.DeleteIfExistsAsync()
 
-    let! _ = Defaults.defaultAnnotations "test" |> saveAnnotationsToDB connectionString
-    do! StateManagement.storeResetTime connectionString }
+//     let! _ = Defaults.defaultAnnotations "test" |> saveAnnotationsToDB connectionString
+//     do! StateManagement.storeResetTime connectionString }

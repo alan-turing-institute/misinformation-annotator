@@ -4,6 +4,7 @@ open Expecto
 open ServerCode
 open ServerCode.Storage
 
+
 let AnnotationsTests =
   testList "Annotations" [
     (*
@@ -13,5 +14,6 @@ let AnnotationsTests =
       Expect.isTrue
         (defaults.Articles |> Seq.exists (fun b -> b.Title = "Mastering F#")) 
         "A good article should have been advertised"
-        *)
-  ]
+    *)        
+    ]
+
