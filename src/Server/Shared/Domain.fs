@@ -58,10 +58,19 @@ type Selection = {
 
 type SourceId = int
 
+type AnonymousInfo = 
+    | NoReasonGiven
+    | Reason of string
+
+type SourceType = 
+    | Named
+    | Anonymous of AnonymousInfo option
+
 // Information regarding information sources from articles
 type SourceInfo = {
     TextMentions : Selection list
     SourceID : SourceId
+    SourceType : SourceType option
 }
 
 type ArticleAnnotations =
