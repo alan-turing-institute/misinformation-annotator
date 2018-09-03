@@ -45,6 +45,8 @@ type Msg =
     | RemoveDeleteButton
     | DeleteSelection of (SourceId * Selection)
     | IsSourceAnonymous of (SourceId * bool)
+    | AnonymityReason of (SourceId * AnonymousInfo)
+    | AnonymityReasonText of (SourceId * string)
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -189,11 +191,13 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                  button [ OnClick (fun _ -> dispatch (HighlightSource n))
                           (match model.SourceSelectionMode with
                            | Some i -> ClassName "btn btn-disabled" 
-                           | None -> ClassName "btn btn-primary") ] 
-                          [ str "Edit" ]
+                           | None -> ClassName "btn btn-info") ] 
+                          [ (if model.SourceInfo.[n].TextMentions.Length = 0 
+                             then str "Start" 
+                             else str "Continue") ]
                  button [ OnClick (fun _ -> dispatch (FinishedHighlighting))
                           (match model.SourceSelectionMode with
-                           | Some i -> if i = n then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
+                           | Some i -> if i = n then ClassName "btn btn-info" else ClassName "btn btn-disabled"
                            | None -> ClassName "btn btn-disabled") ] 
                           [ str "Finish" ]
                  button [ OnClick (fun _ -> dispatch (ClearHighlights n)) 
@@ -206,7 +210,7 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                     button [ 
                         (match model.SourceInfo.[n].SourceType with
                          | None -> ClassName "btn btn-light"
-                         | Some Named -> ClassName "btn btn-primary"
+                         | Some Named -> ClassName "btn btn-info"
                          | Some (Anonymous _) -> ClassName "btn btn-light")
                         OnClick (fun _ -> dispatch (IsSourceAnonymous (n, false))) ] 
                         [ str "Named" ]
@@ -214,13 +218,48 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                         (match model.SourceInfo.[n].SourceType with
                          | None -> ClassName "btn btn-light"
                          | Some Named -> ClassName "btn btn-light"
-                         | Some (Anonymous _) -> ClassName "btn btn-primary")
+                         | Some (Anonymous _) -> ClassName "btn btn-info")
                         OnClick (fun _ -> dispatch (IsSourceAnonymous (n, true))) ] 
                         [ str "Anonymous" ]
                 ]
-            if model.SourceInfo.[n].SourceType = Some (Anonymous None) then
-                yield li [] [ str "Is a reason given for giving anonymity?" ]
-                        
+            match model.SourceInfo.[n].SourceType with
+            | None -> yield! []
+            | Some(Named) -> yield! []
+            | Some(Anonymous) ->
+              yield! [
+                  li [] [ 
+                      str "Is there a reason given for providing anonymity?" 
+                      br []
+                      button [
+                        (match model.SourceInfo.[n].AnonymousInfo with 
+                         | None ->
+                            ClassName "btn btn-light"
+                         | Some NoReasonGiven ->
+                            ClassName "btn btn-light"
+                         | Some Reason ->
+                            ClassName "btn btn-info")
+                        OnClick (fun _ -> dispatch (AnonymityReason(n, Reason)))
+                        ] [ str "Yes" ]
+                      button [
+                        (match model.SourceInfo.[n].AnonymousInfo with 
+                         | None ->
+                            ClassName "btn btn-light"
+                         | Some NoReasonGiven ->
+                            ClassName "btn btn-info"
+                         | Some Reason ->
+                            ClassName "btn btn-light")
+                        OnClick (fun _ -> dispatch (AnonymityReason(n, NoReasonGiven)))
+                        ] [ str "No" ]
+                      ]
+                ]
+              if model.SourceInfo.[n].AnonymousInfo = Some(Reason) then
+                yield! [
+                  yield 
+                    li [] [ str "Please highlight the text of the reason for anonymity."]
+                  match model.SourceInfo.[n].AnonymityReason with
+                  | None -> ()
+                  | Some reason -> yield str reason 
+                ]
         ]
     ]
 
@@ -386,7 +425,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                       
                  yield button 
                         (if model.SourceInfo.Length < 10 then 
-                            [ ClassName "btn btn-info"
+                            [ ClassName "btn btn-primary"
                               OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
                          else
                             [ ClassName "btn btn-disabled" ]) 
@@ -396,7 +435,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     yield hr []
                     yield button 
                         [ OnClick (fun _ -> dispatch (SubmitAnnotations))
-                          ClassName "btn btn-primary" ] 
+                          ClassName "btn btn-success" ] 
                         [ str "Submit" ]
                     if model.Submitted = Some false then
                         yield span [] [str "Cannot submit - please contact the admin."]
@@ -463,7 +502,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | Q0_MentionsSources x ->
         { model with 
             Q0_MentionsSources = Some x; 
-            SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None } |] },
+            SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] },
         Cmd.none, NoOp
 
     | HighlightSource n -> 
@@ -488,7 +527,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             SourceInfo = 
                 Array.append 
                     currentSources 
-                    [| { SourceID = n; TextMentions = []; SourceType = None } |] }, 
+                    [| { SourceID = n; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }, 
         Cmd.none, NoOp
 
     | SubmitAnnotations ->
@@ -535,6 +574,31 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             sources.[id] with 
               SourceType = 
                 if not isAnonymous then Some(Named) 
-                else Some(Anonymous(None)) }
+                else Some(Anonymous) }
         { model with 
             SourceInfo = sources }, Cmd.none, NoOp
+
+    | AnonymityReason (id, reason) ->
+        let sources = model.SourceInfo
+        sources.[id] <- {
+            sources.[id] with 
+                AnonymousInfo =
+                    if sources.[id].SourceType = Some(Anonymous) then
+                        Some reason
+                    else None
+        }        
+        { model with 
+            SourceInfo = sources }, Cmd.none, NoOp
+
+    | AnonymityReasonText (id, text) ->
+        let sources = model.SourceInfo
+        sources.[id] <- {
+            sources.[id] with 
+                AnonymityReason =
+                    if sources.[id].AnonymousInfo = Some(Reason) then
+                        Some text
+                    else
+                        None
+        }        
+        { model with 
+            SourceInfo = sources }, Cmd.none, NoOp        

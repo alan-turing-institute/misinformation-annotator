@@ -60,17 +60,19 @@ type SourceId = int
 
 type AnonymousInfo = 
     | NoReasonGiven
-    | Reason of string
+    | Reason 
 
 type SourceType = 
     | Named
-    | Anonymous of AnonymousInfo option
+    | Anonymous
 
 // Information regarding information sources from articles
 type SourceInfo = {
     TextMentions : Selection list
     SourceID : SourceId
     SourceType : SourceType option
+    AnonymousInfo : AnonymousInfo option
+    AnonymityReason : string option
 }
 
 type ArticleAnnotations =
