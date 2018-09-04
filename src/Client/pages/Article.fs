@@ -14,15 +14,20 @@ open ServerCode.Domain
 open Style
 open System
 
+type HighlightMode =
+    | SourceText of SourceId
+    | AnonymityText of SourceId
+    | NoHighlight
+
 type Model = {
     User: UserData
     Heading: string
     Text: string [] 
     Link: string
     Tags: string list
-    Q0_MentionsSources: bool option
+    MentionsSources: bool option
     SourceInfo : SourceInfo []
-    SourceSelectionMode : SourceId option // id of the source that's being currently annotated
+    SourceSelectionMode : HighlightMode
     ShowDeleteSelection : (SourceId * Selection) option
     Submitted : bool option
 }
@@ -34,8 +39,8 @@ type Msg =
     | SubmitError of exn
     | FetchArticle
     | TextSelected of (SourceId *Selection) 
-    | Q0_MentionsSources of bool
-    | HighlightSource of int
+    | MentionsSources of bool
+    | HighlightSource of SourceId
     | FinishedHighlighting
     | ClearHighlights of int
     | AddSource of int
@@ -46,7 +51,7 @@ type Msg =
     | DeleteSelection of (SourceId * Selection)
     | IsSourceAnonymous of (SourceId * bool)
     | AnonymityReason of (SourceId * AnonymousInfo)
-    | AnonymityReasonText of (SourceId * string)
+    | HighlightReason of SourceId
 
 type ExternalMsg = 
     | DisplayArticle of Article
@@ -92,11 +97,12 @@ let init (user:UserData) (article: Article)  =
       Text = match article.Text with | Some t -> t | None -> [||]
       Tags = []
       Link = article.ID 
-      Q0_MentionsSources = None 
+      MentionsSources = None 
       SourceInfo = [||]
-      SourceSelectionMode = None
+      SourceSelectionMode = NoHighlight
       ShowDeleteSelection = None 
-      Submitted = None }, 
+      Submitted = None
+      }, 
     fetchArticleCmd article user
 
 let isInsideSelection paragraph position (sources: SourceInfo []) =
@@ -139,8 +145,8 @@ let getSelection (model: Model) e : SelectionResult =
     match string (rawOutput?("type")) with
     | "Range" -> 
         match model.SourceSelectionMode with
-        | None -> NoSelection
-        | Some id ->
+        | NoHighlight -> NoSelection
+        | SourceText(id) | AnonymityText(id) ->
             let startParagraph = rawOutput?anchorNode?parentElement?id |> unbox<int>
             let endParagraph = rawOutput?focusNode?parentElement?id |> unbox<int>
             let startIdx = rawOutput?anchorOffset |> unbox<int>
@@ -190,15 +196,17 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                  br []
                  button [ OnClick (fun _ -> dispatch (HighlightSource n))
                           (match model.SourceSelectionMode with
-                           | Some i -> ClassName "btn btn-disabled" 
-                           | None -> ClassName "btn btn-info") ] 
+                           | SourceText _ -> ClassName "btn btn-disabled" 
+                           | NoHighlight -> ClassName "btn btn-info"
+                           | AnonymityText _ -> ClassName "btn btn-info") ] 
                           [ (if model.SourceInfo.[n].TextMentions.Length = 0 
                              then str "Start" 
                              else str "Continue") ]
                  button [ OnClick (fun _ -> dispatch (FinishedHighlighting))
                           (match model.SourceSelectionMode with
-                           | Some i -> if i = n then ClassName "btn btn-info" else ClassName "btn btn-disabled"
-                           | None -> ClassName "btn btn-disabled") ] 
+                           | SourceText i -> if i = n then ClassName "btn btn-info" else ClassName "btn btn-disabled"
+                           | NoHighlight -> ClassName "btn btn-disabled"
+                           | AnonymityText _ -> ClassName "btn btn-disabled") ] 
                           [ str "Finish" ]
                  button [ OnClick (fun _ -> dispatch (ClearHighlights n)) 
                           ClassName "btn btn-secondary" ] 
@@ -255,10 +263,36 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
               if model.SourceInfo.[n].AnonymousInfo = Some(Reason) then
                 yield! [
                   yield 
-                    li [] [ str "Please highlight the text of the reason for anonymity."]
+                    li [] [ str "Please highlight the text of the reason(s) for anonymity."]
+                  yield 
+                    button [
+                        (match model.SourceSelectionMode with
+                         | AnonymityText id ->
+                            if id = n then ClassName "btn btn-disabled"
+                            else ClassName "btn btn-info"
+                         | NoHighlight | SourceText _ -> 
+                            ClassName "btn btn-info")
+                        OnClick (fun _ -> dispatch (HighlightReason n))
+                    ] [ str "Start" ] 
+                  yield
+                    button [
+                        (match model.SourceSelectionMode with
+                         | AnonymityText id ->
+                            if id = n then ClassName "btn btn-info"
+                            else ClassName "btn btn-disabled"
+                         | NoHighlight | SourceText _ ->
+                            ClassName "btn btn-disabled")
+                        OnClick (fun _ -> dispatch (FinishedHighlighting))
+                    ] [ str "Finish" ]
                   match model.SourceInfo.[n].AnonymityReason with
                   | None -> ()
-                  | Some reason -> yield str reason 
+                  | Some reason -> 
+                    let rs =
+                        reason
+                        |> List.map (fun selection -> selection.Text)
+                        |> String.concat "; "
+                    
+                    yield str rs
                 ]
         ]
     ]
@@ -266,9 +300,17 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
 type ParagraphPart = {
     StartIdx : int
     EndIdx : int 
-    SpanId : int option
+    SpanId : HighlightMode option
     Text : string
 }
+
+type SelectionType = | SourceHighlight | AnonymityReasonHighlight
+
+let getSpanID id selectionType =
+  match selectionType with
+  | SourceHighlight -> Some (SourceText id)
+  | AnonymityReasonHighlight -> Some (AnonymityText id)
+  
 
 let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch: Msg -> unit) =
     if model.SourceInfo.Length = 0 then [ str text ] else
@@ -279,9 +321,15 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
         (initialState, model.SourceInfo)
         ||> Array.fold (fun paragraphParts sourceInfo ->
             // selected specific source, loop over highlights
-            let allSelections = sourceInfo.TextMentions
+            let allSelections = 
+              List.append
+                (sourceInfo.TextMentions |> List.map (fun tm -> SourceHighlight, tm))
+                (match sourceInfo.AnonymityReason with 
+                 | None -> [] 
+                 | Some(rs) -> rs |> List.map (fun r -> AnonymityReasonHighlight, r))
+                
             (paragraphParts, allSelections) 
-            ||> List.fold (fun paragraphParts' selection -> 
+            ||> List.fold (fun paragraphParts' (selectionType, selection) -> 
                 if paragraphIdx >= selection.StartParagraphIdx && paragraphIdx <= selection.EndParagraphIdx then
                     let startI = 
                         if selection.StartParagraphIdx = paragraphIdx then selection.StartIdx
@@ -296,7 +344,7 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
                             let idx i = i - part.StartIdx   
                             if (part.StartIdx > endI) || (part.EndIdx < startI) then [part] else
                             if part.StartIdx >= startI && part.EndIdx <= endI-1 then
-                                [ { part with SpanId = Some sourceInfo.SourceID } ] 
+                                [ { part with SpanId = getSpanID sourceInfo.SourceID selectionType } ] 
                             else if part.StartIdx <= startI && part.EndIdx >= endI-1 then
                                 let text1,text2,text3 = 
                                     part.Text.[0.. idx startI-1], 
@@ -306,21 +354,21 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
                                     if text1 <> "" then 
                                         yield { StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1 }
                                     if text2 <> "" then
-                                        yield { StartIdx = startI; EndIdx = endI-1; SpanId = Some sourceInfo.SourceID; Text = text2 }
+                                        yield { StartIdx = startI; EndIdx = endI-1; SpanId = getSpanID sourceInfo.SourceID selectionType; Text = text2 }
                                     if text3 <> "" then
                                         yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text3 }
                                 ]
                             else if part.StartIdx > startI && part.EndIdx > endI-1 then
                                 let text1, text2 = part.Text.[0..idx endI-1], part.Text.[idx endI..]
                                 [
-                                        yield {StartIdx = part.StartIdx; EndIdx = endI-1; SpanId = Some sourceInfo.SourceID; Text = text1}
+                                        yield {StartIdx = part.StartIdx; EndIdx = endI-1; SpanId = getSpanID sourceInfo.SourceID selectionType; Text = text1}
                                         yield { StartIdx = endI; EndIdx = part.EndIdx; SpanId = part.SpanId; Text = text2 }
                                 ]
                             else if part.StartIdx < startI && part.EndIdx < endI-1 then
                                 let text1, text2 = part.Text.[0..idx startI], part.Text.[idx startI+1..]
                                 [
                                         yield {StartIdx = part.StartIdx; EndIdx = startI-1; SpanId = part.SpanId; Text = text1}
-                                        yield { StartIdx = startI; EndIdx = part.EndIdx; SpanId = Some sourceInfo.SourceID; Text = text2 }
+                                        yield { StartIdx = startI; EndIdx = part.EndIdx; SpanId = getSpanID sourceInfo.SourceID selectionType; Text = text2 }
                                 ]                            
                             else [part]
                         )
@@ -334,19 +382,13 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
     |> List.filter (fun part -> part.Text.Length > 0)
     |> List.map (fun part ->
         match part.SpanId with
-        | Some id -> 
-            match model.ShowDeleteSelection with
-            | Some (id', selection) -> 
-                if id' = id && selection.Text = part.Text then
-                    span [ ClassName ("span" + string id) ] [
-                        str part.Text
-                    ]
-                else
-                    span [ ClassName ("span" + string id)
-                            ] [ str part.Text ]
-            | None ->
-                span [ ClassName ("span" + string id)
+        | Some (SourceText id) ->
+            span [ ClassName ("span" + string id)
                       ] [ str part.Text ]
+        | Some (AnonymityText id) ->
+            span [ ClassName ("anon" + string id) ] [ str part.Text ]
+        | Some (NoHighlight) ->
+            str part.Text
         | None -> str part.Text)    
 
 
@@ -374,8 +416,10 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
                         yield p [ OnMouseUp (fun e -> 
                                     match (getSelection model e) with
-                                    | NewHighlight(id, selection) -> dispatch (TextSelected (id,selection))
-                                    | ClickHighlight(position, selection) -> dispatch (ShowDeleteButton (position, selection))
+                                    | NewHighlight(id, selection) -> 
+                                       dispatch (TextSelected (id,selection))
+                                    | ClickHighlight(position, selection) -> 
+                                       dispatch (ShowDeleteButton (position, selection))
                                     | NoSelection -> () 
                                     )
                                   Id (string idx) ]  [ 
@@ -405,18 +449,18 @@ let view (model:Model) (dispatch: Msg -> unit) =
           | Some true ->
                yield h5 [] [ str "Submitted" ]
           | Some false | None ->              
-              match model.Q0_MentionsSources with
+              match model.MentionsSources with
               | None ->
                 yield h4 [] [ str "Does the article mention any sources?" ]
-                yield button [ OnClick (fun _ -> dispatch (Q0_MentionsSources true)) 
-                               (match model.Q0_MentionsSources with
+                yield button [ OnClick (fun _ -> dispatch (MentionsSources true)) 
+                               (match model.MentionsSources with
                                 | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
                                 | None -> ClassName "btn btn-light") ]
                              [ str "Yes" ]
-                yield button [ (match model.Q0_MentionsSources with
+                yield button [ (match model.MentionsSources with
                                 | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
                                 | None -> ClassName "btn btn-light")
-                               OnClick (fun _ -> dispatch (Q0_MentionsSources false)) ]
+                               OnClick (fun _ -> dispatch (MentionsSources false)) ]
                              [ str "No" ]
               | Some false ->  ()
               | Some true ->
@@ -460,23 +504,36 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         model, Cmd.none, NoOp //DisplayArticle model.Article
 
     | TextSelected (id, selection) ->
-        match model.ShowDeleteSelection with
-        | None ->
-            if model.SourceInfo.Length < id+1 
-            then 
-                Browser.console.log("Source not added!")
-                model, Cmd.none, NoOp
-            else
+        if model.SourceInfo.Length < id+1 
+        then 
+            Browser.console.log("Source not added!")
+            model, Cmd.none, NoOp
+        else
+
+            match model.SourceSelectionMode with
+            | NoHighlight -> model, Cmd.none, NoOp
+            | SourceText x ->
+                if x <> id then Browser.console.log("Inconsistent source numbers")
                 let modelInfo = model.SourceInfo
                 let newInfoItem = { 
                     modelInfo.[id] with 
                       TextMentions = selection::modelInfo.[id].TextMentions 
                       }
                 modelInfo.[id] <- newInfoItem
-
                 { model with SourceInfo = modelInfo }, Cmd.none, NoOp
-        | Some _ -> 
-                { model with ShowDeleteSelection = None }, Cmd.none, NoOp            
+            | AnonymityText x ->
+                if x <> id then Browser.console.log("Anonymity reason: inconsistent source numbers")
+
+                let modelInfo = model.SourceInfo
+                let newInfoItem = {
+                    modelInfo.[id] with
+                        AnonymityReason = 
+                            match modelInfo.[id].AnonymityReason with
+                            | None -> Some [selection]
+                            | Some(s) -> Some (selection::s)
+                }
+                modelInfo.[id] <- newInfoItem
+                { model with SourceInfo = modelInfo }, Cmd.none, NoOp
 
     | FetchedArticle (article, annotations) ->
         Browser.console.log("Fetched article!")
@@ -499,18 +556,18 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | FetchError e ->
         model, Cmd.none, NoOp
 
-    | Q0_MentionsSources x ->
+    | MentionsSources x ->
         { model with 
-            Q0_MentionsSources = Some x; 
+            MentionsSources = Some x; 
             SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] },
         Cmd.none, NoOp
 
     | HighlightSource n -> 
-        { model with SourceSelectionMode = Some n }, 
+        { model with SourceSelectionMode = SourceText n }, 
         Cmd.none, NoOp
 
     | FinishedHighlighting ->
-        { model with SourceSelectionMode = None}, Cmd.none, NoOp
+        { model with SourceSelectionMode = NoHighlight}, Cmd.none, NoOp
 
     | ClearHighlights n ->
         let currentSources = model.SourceInfo
@@ -590,15 +647,5 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with 
             SourceInfo = sources }, Cmd.none, NoOp
 
-    | AnonymityReasonText (id, text) ->
-        let sources = model.SourceInfo
-        sources.[id] <- {
-            sources.[id] with 
-                AnonymityReason =
-                    if sources.[id].AnonymousInfo = Some(Reason) then
-                        Some text
-                    else
-                        None
-        }        
-        { model with 
-            SourceInfo = sources }, Cmd.none, NoOp        
+    | HighlightReason id ->
+        { model with SourceSelectionMode = AnonymityText id }, Cmd.none, NoOp        

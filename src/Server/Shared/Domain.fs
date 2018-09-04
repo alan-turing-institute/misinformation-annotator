@@ -72,7 +72,7 @@ type SourceInfo = {
     SourceID : SourceId
     SourceType : SourceType option
     AnonymousInfo : AnonymousInfo option
-    AnonymityReason : string option
+    AnonymityReason : (Selection list) option
 }
 
 type ArticleAnnotations =
