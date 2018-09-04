@@ -19,6 +19,8 @@ type HighlightMode =
     | AnonymityText of SourceId
     | NoHighlight
 
+type HighlightType = | SourceHighlight | AnonymityReasonHighlight
+
 type Model = {
     User: UserData
     Heading: string
@@ -28,7 +30,7 @@ type Model = {
     MentionsSources: bool option
     SourceInfo : SourceInfo []
     SourceSelectionMode : HighlightMode
-    ShowDeleteSelection : (SourceId * Selection) option
+    ShowDeleteSelection : (SourceId * HighlightType * Selection) option
     Submitted : bool option
 }
 
@@ -46,9 +48,9 @@ type Msg =
     | AddSource of int
     | SubmitAnnotations
     | Submitted of AnswersResponse
-    | ShowDeleteButton of (SourceId * Selection) 
+    | ShowDeleteButton of (SourceId * HighlightType * Selection) 
     | RemoveDeleteButton
-    | DeleteSelection of (SourceId * Selection)
+    | DeleteSelection of (SourceId * HighlightType * Selection)
     | IsSourceAnonymous of (SourceId * bool)
     | AnonymityReason of (SourceId * AnonymousInfo)
     | HighlightReason of SourceId
@@ -105,24 +107,35 @@ let init (user:UserData) (article: Article)  =
       }, 
     fetchArticleCmd article user
 
+let isInsideHelper paragraph position (selection : Selection) =    
+    if selection.StartParagraphIdx = paragraph && selection.EndParagraphIdx = paragraph then
+        position >= selection.StartIdx && position <= selection.EndIdx
+    else if selection.StartParagraphIdx = paragraph then 
+        position >= selection.StartIdx 
+    else if selection.EndParagraphIdx = paragraph then
+        position <= selection.EndIdx
+    else if selection.StartParagraphIdx < paragraph && selection.EndParagraphIdx > paragraph then
+        true
+    else false
+
 let isInsideSelection paragraph position (sources: SourceInfo []) =
     sources
     |> Array.choose (fun source -> 
-        let selected =
+        let sources =
             source.TextMentions 
-            |> List.filter (fun (selection:Selection) ->
-                if selection.StartParagraphIdx = paragraph && selection.EndParagraphIdx = paragraph then
-                    position >= selection.StartIdx && position <= selection.EndIdx
-                else if selection.StartParagraphIdx = paragraph then 
-                    position >= selection.StartIdx 
-                else if selection.EndParagraphIdx = paragraph then
-                    position <= selection.EndIdx
-                else if selection.StartParagraphIdx < paragraph && selection.EndParagraphIdx > paragraph then
-                    true
-                else false)
-        
-        if selected.Length > 0 then Some(source.SourceID, selected |> List.head) else None)
-
+            |> List.filter (fun (selection:Selection) -> 
+                isInsideHelper paragraph position selection)
+            |> List.map (fun s -> SourceHighlight, s)
+        let anonymityReasons =
+            match source.AnonymityReason with
+            | Some(ar) ->
+                ar |> List.filter (fun selection -> isInsideHelper paragraph position selection)
+                |> List.map (fun s -> AnonymityReasonHighlight, s)
+            | None -> []
+        let activeSelections = List.append sources anonymityReasons
+        if activeSelections.Length > 0 then
+            Some (source.SourceID, activeSelections |> List.head)
+        else None)
 
 [<Emit("window.getSelection()")>]
 let jsGetSelection () : obj = jsNative    
@@ -136,7 +149,7 @@ let jsRemoveSelection() = jsNative
 type SelectionResult = 
     | NoSelection
     | NewHighlight of SourceId * Selection
-    | ClickHighlight of SourceId * Selection
+    | ClickHighlight of SourceId * HighlightType * Selection
 
 let getSelection (model: Model) e : SelectionResult = 
     Browser.console.log(jsGetSelection())
@@ -180,8 +193,8 @@ let getSelection (model: Model) e : SelectionResult =
         if clickedSelection.Length = 0 then
             NoSelection
         else
-            let selected = clickedSelection |> Array.head
-            ClickHighlight selected
+            let sourceId, (selectionType, selected) = clickedSelection |> Array.head
+            ClickHighlight (sourceId, selectionType, selected)
 
     | _ -> NoSelection
     
@@ -304,7 +317,6 @@ type ParagraphPart = {
     Text : string
 }
 
-type SelectionType = | SourceHighlight | AnonymityReasonHighlight
 
 let getSpanID id selectionType =
   match selectionType with
@@ -418,15 +430,15 @@ let view (model:Model) (dispatch: Msg -> unit) =
                                     match (getSelection model e) with
                                     | NewHighlight(id, selection) -> 
                                        dispatch (TextSelected (id,selection))
-                                    | ClickHighlight(position, selection) -> 
-                                       dispatch (ShowDeleteButton (position, selection))
+                                    | ClickHighlight(id, selectionType, selection) -> 
+                                       dispatch (ShowDeleteButton (id, selectionType, selection))
                                     | NoSelection -> () 
                                     )
                                   Id (string idx) ]  [ 
                                   match model.ShowDeleteSelection with 
                                   | None -> 
                                         yield str paragraph
-                                  | Some (id, selection) ->
+                                  | Some (id, selectionType, selection) ->
                                     if selection.EndParagraphIdx <> idx then
                                         yield str paragraph 
                                     else
@@ -435,7 +447,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                                         yield span [] [ str part1 ]
                                         yield button [ 
                                                ClassName "btn btn-danger delete-highlight-btn" 
-                                               OnClick (fun _ -> dispatch (DeleteSelection (id, selection)))]
+                                               OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
                                                [ str "Delete" ]
                                         yield span [] [ str part2 ]
                                    ] 
@@ -611,20 +623,39 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with ShowDeleteSelection = None},
         Cmd.none, NoOp
 
-    | DeleteSelection (id, selection : Selection) ->
+    | DeleteSelection (id, selectionType, selection : Selection) ->
         Browser.console.log("Delete!!!")
 
-        let newHighlights = 
-            model.SourceInfo.[id].TextMentions
-            |> List.filter (fun s -> s <> selection)
-        let newSources = model.SourceInfo
-        newSources.[id] <- { model.SourceInfo.[id] with TextMentions = newHighlights }
+        match selectionType with
+        | SourceHighlight ->
+            let newHighlights = 
+                model.SourceInfo.[id].TextMentions
+                |> List.filter (fun s -> s <> selection)
+            let newSources = model.SourceInfo
+            newSources.[id] <- { model.SourceInfo.[id] with TextMentions = newHighlights }
 
-        { model with 
-            ShowDeleteSelection = None;
-            SourceInfo = newSources },
-        Cmd.none, NoOp
+            { model with 
+                ShowDeleteSelection = None;
+                SourceInfo = newSources },
+            Cmd.none, NoOp
 
+        | AnonymityReasonHighlight ->
+          match model.SourceInfo.[id].AnonymityReason with
+          | None -> 
+            Browser.console.log("Deleting non-existing reason for anonymity.")
+            model, Cmd.none, NoOp
+          | Some ar ->
+            let newHighlights = 
+                let ar' = ar |> List.filter (fun s -> s <> selection)
+                if ar'.Length > 0 then Some ar' else None
+            let newSources = model.SourceInfo
+            newSources.[id] <- { model.SourceInfo.[id] with AnonymityReason = newHighlights }
+
+            { model with 
+                ShowDeleteSelection = None;
+                SourceInfo = newSources },
+            Cmd.none, NoOp
+            
     | IsSourceAnonymous (id, isAnonymous) ->
         let sources = model.SourceInfo
         sources.[id] <- { 
