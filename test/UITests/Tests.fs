@@ -47,6 +47,7 @@ let tests =
             logout ()
         )
 
+        (*
         testCase "validate form fields" (fun () ->
             startApp ()
             login ()
@@ -113,5 +114,7 @@ let tests =
             Expect.equal currArticleRows.Length initArticleRows.Length "should remove the new article"
 
             logout ()
+            
         )
+        *)
     ]

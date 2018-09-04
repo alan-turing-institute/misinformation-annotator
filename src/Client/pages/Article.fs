@@ -32,6 +32,7 @@ type Model = {
     SourceInfo : SourceInfo []
     SourceSelectionMode : HighlightMode
     ShowDeleteSelection : (SourceId * HighlightType * Selection) option
+    Completed : bool
     Submitted : bool option
 }
 
@@ -107,6 +108,7 @@ let init (user:UserData) (article: Article)  =
       ShowDeleteSelection = None 
       Submitted = None
       StartedEditing = DateTime.Now
+      Completed = false
       }, 
     fetchArticleCmd article user
 
@@ -202,7 +204,7 @@ let getSelection (model: Model) e : SelectionResult =
     | _ -> NoSelection
     
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
-    div [ClassName "container"] [
+    div [ClassName "container col-lg-12"] [
         h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
         ol [ ] [
             yield li [ ] 
@@ -399,76 +401,79 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
 
 
 let view (model:Model) (dispatch: Msg -> unit) =
-    [
-      div [ ClassName "col-md-10"] [
-        div [ ClassName "row" ] [
-         yield 
-          div [ ClassName "container col-lg-6"
-                OnMouseDown (fun e -> 
-                    if not (e.target.ToString().Contains "delete-highlight-btn") then
-                        match model.ShowDeleteSelection with
-                        | Some _ -> 
-                            e.preventDefault()
-                        | None -> ()
-                        dispatch RemoveDeleteButton
-                    else ()) ] [
-            yield h1 [] [ str (model.Heading) ]
-            yield div [ ClassName "article" ] [
-                div [ ClassName "article-highlights" ] [
-                    for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                        yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) 
-                ]
-                div [ ClassName "article-text" ] [
-                    for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                        yield p [ OnMouseUp (fun e -> 
-                                    match (getSelection model e) with
-                                    | NewHighlight(id, selection) -> 
-                                       dispatch (TextSelected (id,selection))
-                                    | ClickHighlight(id, selectionType, selection) -> 
-                                       dispatch (ShowDeleteButton (id, selectionType, selection))
-                                    | NoSelection -> () 
-                                    )
-                                  Id (string idx) ]  [ 
-                                  match model.ShowDeleteSelection with 
-                                  | None -> 
-                                        yield str paragraph
-                                  | Some (id, selectionType, selection) ->
-                                    if selection.EndParagraphIdx <> idx then
-                                        yield str paragraph 
-                                    else
-                                        let part1 = paragraph.[..selection.EndIdx-1]
-                                        let part2 = paragraph.[selection.EndIdx..]
-                                        yield span [] [ str part1 ]
-                                        yield button [ 
-                                               ClassName "btn btn-danger delete-highlight-btn" 
-                                               OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
-                                               [ str "Delete" ]
-                                        yield span [] [ str part2 ]
-                                   ] 
+  [
+    div [ ClassName "col-md-10"] [
+      div [ ClassName "row" ] [
+       yield 
+        div [ 
+          ClassName "container col-lg-6"
+          OnMouseDown (fun e -> 
+            if not (e.target.ToString().Contains "delete-highlight-btn") then
+              match model.ShowDeleteSelection with
+              | Some _ -> e.preventDefault()
+              | None -> ()
+              dispatch RemoveDeleteButton
+            else ()) ] [
+          yield h1 [] [ str (model.Heading) ]
+          yield 
+            div [ ClassName "article" ] [
+              div [ ClassName "article-highlights" ] 
+                [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
+                    yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) ]
+              div [ ClassName "article-text" ] 
+                [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
+                    yield p  
+                      [ OnMouseUp (fun e -> 
+                          match (getSelection model e) with
+                          | NewHighlight(id, selection) -> 
+                             dispatch (TextSelected (id,selection))
+                          | ClickHighlight(id, selectionType, selection) -> 
+                             dispatch (ShowDeleteButton (id, selectionType, selection))
+                          | NoSelection -> () )
+                        Id (string idx) ]  
+                      [ match model.ShowDeleteSelection with 
+                        | None -> 
+                          yield str paragraph
+                        | Some (id, selectionType, selection) ->
+                          if selection.EndParagraphIdx <> idx then
+                            yield str paragraph 
+                          else
+                            let part1 = paragraph.[..selection.EndIdx-1]
+                            let part2 = paragraph.[selection.EndIdx..]
+                            yield span [] [ str part1 ]
+                            yield button [ 
+                                   ClassName "btn btn-danger delete-highlight-btn" 
+                                   OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
+                                   [ str "Delete" ]
+                            yield span [] [ str part2 ]
+                       ] 
                 ]
             ]
-            yield hr []
+          yield hr []
          ]
 
-         yield div [ ClassName "container questionnaire sticky-top col-lg-6" ] [
+       yield div [ ClassName "container questionnaire col-lg-6" ] [
           match model.Submitted with
           | Some true ->
-               yield h5 [] [ str "Submitted" ]
+            yield h5 [] [ str "Submitted" ]
           | Some false | None ->              
-              match model.MentionsSources with
-              | None ->
-                yield h4 [] [ str "Does the article mention any sources?" ]
-                yield button [ OnClick (fun _ -> dispatch (MentionsSources true)) 
-                               (match model.MentionsSources with
-                                | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
-                                | None -> ClassName "btn btn-light") ]
-                             [ str "Yes" ]
-                yield button [ (match model.MentionsSources with
-                                | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
-                                | None -> ClassName "btn btn-light")
-                               OnClick (fun _ -> dispatch (MentionsSources false)) ]
-                             [ str "No" ]
-              | Some false ->  ()
+            yield h4 [] [ str "Does the article mention any sources?" ]
+            yield button [ 
+                OnClick (fun _ -> dispatch (MentionsSources true)) 
+                (match model.MentionsSources with
+                    | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
+                    | None -> ClassName "btn btn-light") ]
+                [ str "Yes" ]
+            yield button [ 
+                (match model.MentionsSources with
+                  | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
+                  | None -> ClassName "btn btn-light")
+                OnClick (fun _ -> dispatch (MentionsSources false)) ]
+                [ str "No" ]
+            
+            match model.MentionsSources with
+              | None | Some false ->
+                ()
               | Some true ->
                  for i in 0..model.SourceInfo.Length-1 do
                       yield viewAddSource model i dispatch
@@ -480,12 +485,13 @@ let view (model:Model) (dispatch: Msg -> unit) =
                          else
                             [ ClassName "btn btn-disabled" ]) 
                         [ str "+ Add additional source"]
-              yield 
+            yield 
                 div [] [
                     yield hr []
                     yield button 
                         [ OnClick (fun _ -> dispatch (SubmitAnnotations))
-                          ClassName "btn btn-success" ] 
+                          (if model.Completed then ClassName "btn btn-success" 
+                           else ClassName "btn btn-disabled") ] 
                         [ str "Submit" ]
                     if model.Submitted = Some false then
                         yield span [] [str "Cannot submit - please contact the admin."]
@@ -495,7 +501,14 @@ let view (model:Model) (dispatch: Msg -> unit) =
       ]
     ]
 
-
+let isCompleted (model: Model) =
+    if model.MentionsSources = Some false then true else
+    if model.SourceInfo.Length = 0 then false else
+    if (model.SourceInfo 
+        |> Array.filter (fun si -> si.SourceType.isNone) 
+        |> Array.length) > 0 then false else
+    if (model.SourceInfo
+        |> Array.filter (fun si -> si.SourceType))
  
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
@@ -565,6 +578,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | MentionsSources x ->
         { model with 
             MentionsSources = Some x; 
+            Completed = (isCompleted model)
             SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] },
         Cmd.none, NoOp
 
@@ -594,7 +608,9 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Cmd.none, NoOp
 
     | SubmitAnnotations ->
-        model, postAnswersCmd model, NoOp
+        model, 
+        (if model.Completed then postAnswersCmd model else Cmd.none), 
+        NoOp
 
     | Submitted resp ->
         match resp.Success with 
