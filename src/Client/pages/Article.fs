@@ -22,6 +22,7 @@ type HighlightMode =
 type HighlightType = | SourceHighlight | AnonymityReasonHighlight
 
 type Model = {
+    StartedEditing: System.DateTime
     User: UserData
     Heading: string
     Text: string [] 
@@ -85,7 +86,8 @@ let postAnswers (model: Model) =
                 User = model.User
                 Title = model.Heading
                 ArticleID = model.Link
-                Annotations = model.SourceInfo } []
+                Annotations = model.SourceInfo
+                MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes } []
         let! resp = response.json<AnswersResponse>()
         return resp }
 
@@ -104,6 +106,7 @@ let init (user:UserData) (article: Article)  =
       SourceSelectionMode = NoHighlight
       ShowDeleteSelection = None 
       Submitted = None
+      StartedEditing = DateTime.Now
       }, 
     fetchArticleCmd article user
 
@@ -297,15 +300,6 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                             ClassName "btn btn-disabled")
                         OnClick (fun _ -> dispatch (FinishedHighlighting))
                     ] [ str "Finish" ]
-                  match model.SourceInfo.[n].AnonymityReason with
-                  | None -> ()
-                  | Some reason -> 
-                    let rs =
-                        reason
-                        |> List.map (fun selection -> selection.Text)
-                        |> String.concat "; "
-                    
-                    yield str rs
                 ]
         ]
     ]

@@ -80,7 +80,8 @@ type ArticleAnnotations =
     User: UserData
     Title: string
     ArticleID: string // article ID / link
-    Annotations: SourceInfo [] }
+    Annotations: SourceInfo []
+    MinutesSpent: float }
 
 type AnswersResponse = 
   { Success : bool }
