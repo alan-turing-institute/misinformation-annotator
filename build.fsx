@@ -323,6 +323,7 @@ Target "Deploy" (fun _ ->
             info.FileName <- "docker"
             info.WorkingDirectory <- deployDir
             info.Arguments <- sprintf "login %s --username \"%s\" --password \"%s\"" dockerLoginServer dockerUser dockerPassword) TimeSpan.MaxValue
+
     if result <> 0 then failwith "Docker login failed"
 
     let result =
@@ -362,5 +363,6 @@ Target "All" DoNothing
 
 "InstallClient"
   ==> "RunSSR"
+  
 
 RunTargetOrDefault "All"

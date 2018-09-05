@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ContentModelStore">
+    <e p="$USER_HOME$/Library/Caches/Rider2017.3/resharper-host/local/Transient/ReSharperHost/v11/SolutionCaches/_BookStore.-1658595076.00" t="ExcludeRecursive" />
+    <e p="$PROJECT_DIR$" t="IncludeFlat">
+      <e p=".paket" t="Include" />
+      <e p="BookStore.sln" t="IncludeFlat" />
+      <e p="build.fsx" t="Include" />
+      <e p="package.json" t="Include" />
+      <e p="paket.dependencies" t="Include" />
+      <e p="paket.lock" t="Include" />
+      <e p="prepare-tests.cmd" t="Include" />
+      <e p="project" t="Include" />
+      <e p="README.md" t="Include" />
+      <e p="RELEASE_NOTES.md" t="Include" />
+      <e p="src/Client/Client.fsproj" t="IncludeRecursive" />
+      <e p="src/Server/Server.fsproj" t="IncludeRecursive" />
+      <e p="test/UITests/UITests.fsproj" t="IncludeRecursive" />
+      <e p="tests" t="Include" />
+    </e>
+  </component>
+</project>
