@@ -502,7 +502,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
     ]
 
 // Check if form can be submitted
-let isCompleted (model: Model) =
+let checkQuestionsCompleted (model: Model) =
     // is source-specific part completed?
     let isPartCompleted (sourceInfo: SourceInfo) =
         if sourceInfo.TextMentions.Length = 0 then false
@@ -523,26 +523,29 @@ let isCompleted (model: Model) =
 
     if model.MentionsSources = Some false then true else
     if model.SourceInfo.Length = 0 then false else
-    (false, model.SourceInfo)
-    ||> Array.fold (fun state si -> state || isPartCompleted si)
+    (true, model.SourceInfo)
+    ||> Array.fold (fun state si -> state && isPartCompleted si)
+
+let isCompleted model = 
+    { model with Completed = checkQuestionsCompleted model }    
  
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
     | FetchArticle -> 
-        model, 
+        model |> isCompleted, 
         fetchArticleCmd 
             { Article.Title = model.Heading; ID = model.Link; Text = None } model.User,
             NoOp
-        
+         
     | View -> 
         Browser.console.log("View message in update")
-        model, Cmd.none, NoOp //DisplayArticle model.Article
+        model |> isCompleted, Cmd.none, NoOp //DisplayArticle model.Article
 
     | TextSelected (id, selection) ->
         if model.SourceInfo.Length < id+1 
         then 
             Browser.console.log("Source not added!")
-            model, Cmd.none, NoOp
+            model |> isCompleted, Cmd.none, NoOp
         else
 
             match model.SourceSelectionMode with
@@ -555,7 +558,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                       TextMentions = selection::modelInfo.[id].TextMentions 
                       }
                 modelInfo.[id] <- newInfoItem
-                { model with SourceInfo = modelInfo }, Cmd.none, NoOp
+                { model with SourceInfo = modelInfo } |> isCompleted, Cmd.none, NoOp
             | AnonymityText x ->
                 if x <> id then Browser.console.log("Anonymity reason: inconsistent source numbers")
 
@@ -568,7 +571,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                             | Some(s) -> Some (selection::s)
                 }
                 modelInfo.[id] <- newInfoItem
-                { model with SourceInfo = modelInfo }, Cmd.none, NoOp
+                { model with SourceInfo = modelInfo } |> isCompleted, Cmd.none, NoOp
 
     | FetchedArticle (article, annotations) ->
         Browser.console.log("Fetched article!")
@@ -580,39 +583,40 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             match annotations with
             | Some a -> 
                 if a.ArticleID = article.ID && a.User.UserName = model.User.UserName then
-                    { model with Text = t; SourceInfo = a.Annotations; Submitted = Some true }, Cmd.none, NoOp
+                    { model with Text = t; SourceInfo = a.Annotations; Submitted = Some true }
+                    |> isCompleted, Cmd.none, NoOp
                 else
                     Browser.console.log("Annotations loaded for incorrect user.")
-                    { model with Text = t }, Cmd.none, NoOp
+                    { model with Text = t }|> isCompleted, Cmd.none, NoOp
             | None -> 
-                { model with Text = t }, Cmd.none, NoOp
-        | None -> model, Cmd.none, NoOp
+                { model with Text = t }|> isCompleted, Cmd.none, NoOp
+        | None -> model|> isCompleted, Cmd.none, NoOp
 
     | FetchError e ->
-        model, Cmd.none, NoOp
+        model|> isCompleted, Cmd.none, NoOp
 
     | MentionsSources x ->
         { model with 
             MentionsSources = Some x; 
-            Completed = (isCompleted model)
-            SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] },
+            SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }
+            |> isCompleted,
         Cmd.none, NoOp
 
     | HighlightSource n -> 
-        { model with SourceSelectionMode = SourceText n }, 
+        { model with SourceSelectionMode = SourceText n } |> isCompleted, 
         Cmd.none, NoOp
 
     | FinishedHighlighting ->
-        { model with SourceSelectionMode = NoHighlight}, Cmd.none, NoOp
+        { model with SourceSelectionMode = NoHighlight} |> isCompleted, Cmd.none, NoOp
 
     | ClearHighlights n ->
         let currentSources = model.SourceInfo
         if n < currentSources.Length then 
             currentSources.[n] <- { currentSources.[n] with TextMentions = [] }
-            { model with SourceInfo = currentSources }, Cmd.none, NoOp
+            { model with SourceInfo = currentSources } |> isCompleted, Cmd.none, NoOp
         else 
             Browser.console.log("Clear highlights from source " + string n + " but source not found.")
-            model, Cmd.none, NoOp        
+            model |> isCompleted, Cmd.none, NoOp        
 
     | AddSource n ->
         let currentSources = model.SourceInfo
@@ -620,33 +624,34 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             SourceInfo = 
                 Array.append 
                     currentSources 
-                    [| { SourceID = n; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }, 
+                    [| { SourceID = n; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }
+        |> isCompleted, 
         Cmd.none, NoOp
 
     | SubmitAnnotations ->
-        model, 
+        model |> isCompleted, 
         (if model.Completed then postAnswersCmd model else Cmd.none), 
         NoOp
 
     | Submitted resp ->
         match resp.Success with 
         | true -> 
-            { model with Submitted = Some true }, Cmd.none, NoOp
+            { model with Submitted = Some true } |> isCompleted, Cmd.none, NoOp
         | false -> 
-            { model with Submitted = Some false }, Cmd.none, NoOp
+            { model with Submitted = Some false } |> isCompleted, Cmd.none, NoOp
     
     | SubmitError e ->
-        { model with Submitted = Some false },
+        { model with Submitted = Some false } |> isCompleted,
         Cmd.none, NoOp
 
     | ShowDeleteButton selection ->
         Browser.console.log("Mouse click on highlight!")
-        { model with ShowDeleteSelection = Some selection },
+        { model with ShowDeleteSelection = Some selection } |> isCompleted,
         Cmd.none, NoOp
 
     | RemoveDeleteButton ->
         Browser.console.log("Removing delete button")
-        { model with ShowDeleteSelection = None},
+        { model with ShowDeleteSelection = None} |> isCompleted,
         Cmd.none, NoOp
 
     | DeleteSelection (id, selectionType, selection : Selection) ->
@@ -662,7 +667,8 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
             { model with 
                 ShowDeleteSelection = None;
-                SourceInfo = newSources },
+                SourceInfo = newSources }
+                |> isCompleted,
             Cmd.none, NoOp
 
         | AnonymityReasonHighlight ->
@@ -679,7 +685,8 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
             { model with 
                 ShowDeleteSelection = None;
-                SourceInfo = newSources },
+                SourceInfo = newSources }
+                |> isCompleted,
             Cmd.none, NoOp
             
     | IsSourceAnonymous (id, isAnonymous) ->
@@ -690,7 +697,8 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                 if not isAnonymous then Some(Named) 
                 else Some(Anonymous) }
         { model with 
-            SourceInfo = sources }, Cmd.none, NoOp
+            SourceInfo = sources }
+            |> isCompleted, Cmd.none, NoOp
 
     | AnonymityReason (id, reason) ->
         let sources = model.SourceInfo
@@ -702,7 +710,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                     else None
         }        
         { model with 
-            SourceInfo = sources }, Cmd.none, NoOp
+            SourceInfo = sources } |> isCompleted, Cmd.none, NoOp
 
     | HighlightReason id ->
-        { model with SourceSelectionMode = AnonymityText id }, Cmd.none, NoOp        
+        { model with SourceSelectionMode = AnonymityText id } |> isCompleted, Cmd.none, NoOp        

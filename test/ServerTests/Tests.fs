@@ -15,5 +15,7 @@ let AnnotationsTests =
         (defaults.Articles |> Seq.exists (fun b -> b.Title = "Mastering F#")) 
         "A good article should have been advertised"
     *)        
+    testCase "dummy test" <| fun _ ->
+      Expect.isTrue true "True is true"
     ]
 
