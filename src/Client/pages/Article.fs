@@ -501,14 +501,30 @@ let view (model:Model) (dispatch: Msg -> unit) =
       ]
     ]
 
+// Check if form can be submitted
 let isCompleted (model: Model) =
+    // is source-specific part completed?
+    let isPartCompleted (sourceInfo: SourceInfo) =
+        if sourceInfo.TextMentions.Length = 0 then false
+        else 
+        match sourceInfo.SourceType with
+        | None -> false
+        | Some Named -> true
+        | Some Anonymous ->
+            match sourceInfo.AnonymousInfo with
+            | None -> false
+            | Some NoReasonGiven -> true
+            | Some Reason ->
+                match sourceInfo.AnonymityReason with
+                | None -> false
+                | Some text ->
+                    if text.Length = 0 then false
+                    else true
+
     if model.MentionsSources = Some false then true else
     if model.SourceInfo.Length = 0 then false else
-    if (model.SourceInfo 
-        |> Array.filter (fun si -> si.SourceType.isNone) 
-        |> Array.length) > 0 then false else
-    if (model.SourceInfo
-        |> Array.filter (fun si -> si.SourceType))
+    (false, model.SourceInfo)
+    ||> Array.fold (fun state si -> state || isPartCompleted si)
  
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
