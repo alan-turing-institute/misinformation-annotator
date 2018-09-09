@@ -6,13 +6,15 @@ open ServerCode.Domain
 open System
 open System.Threading.Tasks
 open FSharp.Control.Tasks.ContextInsensitive
+open Newtonsoft.Json
 
 type AzureConnection =
     | AzureConnection of string
 
 let getArticlesBlob (AzureConnection connectionString) = task {
     let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
-    let articleBlob = blobClient.GetBlockBlobReference "articles/misinformation.txt"
+    let container = blobClient.GetContainerReference("sample-crawl")
+    let articleBlob = container.GetBlockBlobReference "articles/misinformation.txt"
     return articleBlob }
 
 /// Load list of articles from the database
@@ -20,15 +22,19 @@ let getArticlesFromDB connectionString userName = task {
     let! results = task {
         let! articleBlob = getArticlesBlob connectionString
         // TODO: Find articles that should be displayed to the specific user
-        
-        let query = TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, userName)
-        return! table.ExecuteQuerySegmentedAsync(TableQuery(FilterString = query), null)  }
+        return! articleBlob.DownloadTextAsync()
+    }
+    let articles = 
+        results.Split '\n'
+        |> Array.map (fun articleLine ->
+                articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
+            )
     return
         { UserName = userName
           Articles =
-            [ for result in results ->
-                { Title = result.Properties.["Title"].StringValue
-                  ID = string result.Properties.["Link"].StringValue 
+            [ for article in articles ->
+                { Title = ""
+                  ID = article.ArticleUrl
                   Text = None}, false ] } }
 
 /// load article from the database

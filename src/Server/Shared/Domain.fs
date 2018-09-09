@@ -85,3 +85,29 @@ type ArticleAnnotations =
 
 type AnswersResponse = 
   { Success : bool }
+
+//===========================================================
+
+type OpenGraphNS = {
+    OG: string
+}
+
+type OpenGraphData = {
+    Namespace: OpenGraphNS
+    Properties: string [] []
+}
+
+type MicroformatMetadata = {
+    OpenGraph : OpenGraphData []
+    Microdata : string []
+    JsonLd : string []
+    Microformat : string []
+    Rdfa : obj []
+}
+
+type ArticleDBData = {
+    SiteName : string
+    ArticleUrl : string
+    MicroformatMetadata : MicroformatMetadata
+    Content : string []
+}
