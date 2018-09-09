@@ -2,7 +2,7 @@
 module ServerCode.Database
 
 open Microsoft.Azure.WebJobs
-open ServerCode.Storage.AzureTable
+open ServerCode.Storage.AzureBlob
 open ServerCode
 open ServerCode.Domain
 open System.Threading.Tasks
@@ -26,13 +26,13 @@ let getDatabase databaseType startupTime =
     | DatabaseType.AzureStorage connection ->
         //Storage.WebJobs.startWebJobs connection
         { new IDatabaseFunctions with
-            member __.LoadAnnotations key = Storage.AzureTable.getAnnotationsFromDB connection key
-            member __.LoadArticle key = Storage.AzureTable.loadArticleFromDB connection key
-            member __.SaveAnnotations annotations = Storage.AzureTable.saveAnnotationsToDB connection annotations
+            member __.LoadAnnotations key = Storage.AzureBlob.getAnnotationsFromDB connection key
+            member __.LoadArticle key = Storage.AzureBlob.loadArticleFromDB connection key
+            member __.SaveAnnotations annotations = Storage.AzureBlob.saveAnnotationsToDB connection annotations
             member __.GetLastResetTime () = task {
-                let! resetTime = Storage.AzureTable.getLastResetTime connection
+                let! resetTime = Storage.AzureBlob.getLastResetTime connection
                 return resetTime |> Option.defaultValue startupTime } 
-            member __.LoadArticleAnnotations articleId userName = Storage.AzureTable.loadArticleAnnotationsFromDB articleId userName
+            member __.LoadArticleAnnotations articleId userName = Storage.AzureBlob.loadArticleAnnotationsFromDB articleId userName
         }
 
     | DatabaseType.FileSystem ->
