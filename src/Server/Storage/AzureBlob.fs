@@ -29,11 +29,20 @@ let getArticlesFromDB connectionString userName = task {
         |> Array.map (fun articleLine ->
                 articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
             )
+
+    let getTitle (a:ArticleDBData) =
+        a.MicroformatMetadata.OpenGraph 
+        |> Array.collect (fun og -> 
+            og.Properties 
+            |> Array.filter (fun p -> p |> Array.contains "og:title" )
+            |> Array.map (fun a' -> a'.[1]))
+        |> fun arr -> if arr.Length > 0 then arr.[0] else "Unknown title"
+        
     return
         { UserName = userName
           Articles =
             [ for article in articles ->
-                { Title = ""
+                { Title = getTitle article
                   ID = article.ArticleUrl
                   Text = None}, false ] } }
 
