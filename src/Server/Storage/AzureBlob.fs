@@ -17,6 +17,14 @@ let getArticlesBlob (AzureConnection connectionString) = task {
     let articleBlob = container.GetBlockBlobReference "articles/misinformation.txt"
     return articleBlob }
 
+let getTitle (a:ArticleDBData) =
+    a.microformat_metadata.opengraph 
+    |> Array.collect (fun og -> 
+        og.properties 
+        |> Array.filter (fun p -> p |> Array.contains "og:title" )
+        |> Array.map (fun a' -> a'.[1]))
+    |> fun arr -> if arr.Length > 0 then arr.[0] else "Unknown title"
+
 /// Load list of articles from the database
 let getArticlesFromDB connectionString userName = task {
     let! results = task {
@@ -26,30 +34,42 @@ let getArticlesFromDB connectionString userName = task {
     }
     let articles = 
         results.Split '\n'
+        |> Array.filter (fun a -> a <> "")
         |> Array.map (fun articleLine ->
                 articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
             )
-
-    let getTitle (a:ArticleDBData) =
-        a.MicroformatMetadata.OpenGraph 
-        |> Array.collect (fun og -> 
-            og.Properties 
-            |> Array.filter (fun p -> p |> Array.contains "og:title" )
-            |> Array.map (fun a' -> a'.[1]))
-        |> fun arr -> if arr.Length > 0 then arr.[0] else "Unknown title"
         
     return
         { UserName = userName
           Articles =
             [ for article in articles ->
                 { Title = getTitle article
-                  ID = article.ArticleUrl
+                  ID = article.article_url
                   Text = None}, false ] } }
 
-/// load article from the database
+/// load a specific article from the database
 let loadArticleFromDB connectionString article = task {
+
+    let! results = task {
+        let! articleBlob = getArticlesBlob connectionString
+        // TODO: Find articles that should be displayed to the specific user
+        return! articleBlob.DownloadTextAsync()
+    }
+    let articles = 
+        results.Split '\n'
+        |> Array.filter (fun a -> a <> "")
+        |> Array.map (fun articleLine ->
+                articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
+            )
+
+    let selectedArticle = 
+        articles
+        |> Array.find (fun a -> a.article_url = article)
+
    return
-        { Title = ""; ID = ""; Text = None }
+        { Title = getTitle selectedArticle; 
+          ID = selectedArticle.article_url
+          Text = Some selectedArticle.content }
     }
 
 let loadArticleAnnotationsFromDB articleId userName = task {

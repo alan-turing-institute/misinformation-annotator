@@ -89,25 +89,25 @@ type AnswersResponse =
 //===========================================================
 
 type OpenGraphNS = {
-    OG: string
+    og: string
 }
 
 type OpenGraphData = {
     Namespace: OpenGraphNS
-    Properties: string [] []
+    properties: string [] []
 }
 
 type MicroformatMetadata = {
-    OpenGraph : OpenGraphData []
-    Microdata : string []
-    JsonLd : string []
-    Microformat : string []
-    Rdfa : obj []
+    opengraph : OpenGraphData []
+    microdata : string []
+    json_ld : string []
+    microformat : string []
+    rdfa : obj []
 }
 
 type ArticleDBData = {
-    SiteName : string
-    ArticleUrl : string
-    MicroformatMetadata : MicroformatMetadata
-    Content : string []
+    site_name : string
+    article_url : string
+    microformat_metadata : MicroformatMetadata
+    content : string []
 }

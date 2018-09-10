@@ -25,7 +25,7 @@ let webApp databaseType root =
         GET [
             route PageUrls.Home Pages.home
 
-            route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.getAnnotations db.LoadAnnotations))
+            route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.getAnnotations db.LoadArticles))
             route APIUrls.ResetTime (Annotations.getResetTime db.GetLastResetTime)
 
             //route APIUrls.Article (Article.getArticle db.LoadArticle)

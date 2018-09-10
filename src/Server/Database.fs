@@ -14,7 +14,7 @@ type DatabaseType =
     | AzureStorage of connectionString : AzureConnection
 
 type IDatabaseFunctions =
-    abstract member LoadAnnotations : string -> Task<Domain.ArticleList>
+    abstract member LoadArticles : string -> Task<Domain.ArticleList>
     abstract member SaveAnnotations : Domain.ArticleAnnotations -> Task<unit>
     abstract member GetLastResetTime : unit -> Task<System.DateTime>
     abstract member LoadArticle : string -> Task<Domain.Article>
@@ -26,7 +26,7 @@ let getDatabase databaseType startupTime =
     | DatabaseType.AzureStorage connection ->
         //Storage.WebJobs.startWebJobs connection
         { new IDatabaseFunctions with
-            member __.LoadAnnotations key = Storage.AzureBlob.getAnnotationsFromDB connection key
+            member __.LoadArticles key = Storage.AzureBlob.getArticlesFromDB connection key
             member __.LoadArticle key = Storage.AzureBlob.loadArticleFromDB connection key
             member __.SaveAnnotations annotations = Storage.AzureBlob.saveAnnotationsToDB connection annotations
             member __.GetLastResetTime () = task {
@@ -37,7 +37,7 @@ let getDatabase databaseType startupTime =
 
     | DatabaseType.FileSystem ->
         { new IDatabaseFunctions with
-            member __.LoadAnnotations key = task { return Storage.FileSystem.getArticlesFromDB key }
+            member __.LoadArticles key = task { return Storage.FileSystem.getArticlesFromDB key }
             member __.SaveAnnotations annotations = task { return Storage.FileSystem.saveAnnotationsToDB annotations }
             member __.GetLastResetTime () = task { return startupTime } 
             member __.LoadArticle key = task { return Storage.FileSystem.loadArticleFromDB key }
