@@ -16,8 +16,14 @@ type Login =
         not ((this.UserName <> "test"  || this.Password <> "test") &&
              (this.UserName <> "test2" || this.Password <> "test2"))
 
+type UserProficiency =
+    | Training
+    | User
+    | Expert
+    
 type UserData =
   { UserName : string
+    Proficiency : UserProficiency
     Token    : JWT }
 
 type ArticleText = string []

@@ -10,6 +10,8 @@ open ServerCode.Domain
 let createUserData (login : Domain.Login) =
     {
         UserName = login.UserName
+        // TODO: fetch user level from database
+        Proficiency = Training
         Token    =
             ServerCode.JsonWebToken.encode (
                 { UserName = login.UserName } : ServerTypes.UserRights
