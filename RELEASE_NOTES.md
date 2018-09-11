@@ -1,3 +1,6 @@
+### 0.1.4 - 2018-09-11
+* Bug fixes
+
 ### 0.1.3 - 2018-09-11
 * Debugging azure connection
 

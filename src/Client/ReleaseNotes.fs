@@ -1,10 +1,13 @@
 module internal ReleaseNotes
 
-let Version = "0.1.3"
+let Version = "0.1.4"
 
 let IsPrerelease = false
 
 let Notes = """
+### 0.1.4 - 2018-09-11
+* Bug fixes
+
 ### 0.1.3 - 2018-09-11
 * Debugging azure connection
 
