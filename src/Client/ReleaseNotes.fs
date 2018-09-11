@@ -1,10 +1,13 @@
 module internal ReleaseNotes
 
-let Version = "0.1.4"
+let Version = "0.1.5"
 
 let IsPrerelease = false
 
 let Notes = """
+### 0.1.5 - 2018-09-11
+* Debugging
+
 ### 0.1.4 - 2018-09-11
 * Bug fixes
 

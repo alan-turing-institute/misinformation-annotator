@@ -82,6 +82,7 @@ let postAnnotationsCmd (token,annotations) =
 
 
 let init (user:UserData) =
+    Browser.console.log("Initializing list of annotations")
     { Annotations = ArticleList.New user.UserName
       Token = user.Token
       UserName = user.UserName
