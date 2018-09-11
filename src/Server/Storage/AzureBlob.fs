@@ -11,11 +11,12 @@ open Newtonsoft.Json
 type AzureConnection =
     | AzureConnection of string
 
-let getArticlesBlob (AzureConnection connectionString) = task {
+let getArticlesBlob (AzureConnection connectionString) = //task {
     let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
     let container = blobClient.GetContainerReference("sample-crawl")
     let articleBlob = container.GetBlockBlobReference "articles/misinformation.txt"
-    return articleBlob }
+    //return 
+    articleBlob //}
 
 let getTitle (a:ArticleDBData) =
     a.microformat_metadata.opengraph 
@@ -27,11 +28,18 @@ let getTitle (a:ArticleDBData) =
 
 /// Load list of articles from the database
 let getArticlesFromDB connectionString userName = task {
+    let results = 
+        let articleBlob = getArticlesBlob connectionString
+        // TODO: Find articles that should be displayed to the specific user
+        articleBlob.DownloadTextAsync().Result
+
+    (*
     let! results = task {
         let! articleBlob = getArticlesBlob connectionString
         // TODO: Find articles that should be displayed to the specific user
         return! articleBlob.DownloadTextAsync()
     }
+    *)
     let articles = 
         results.Split '\n'
         |> Array.filter (fun a -> a <> "")
@@ -50,11 +58,11 @@ let getArticlesFromDB connectionString userName = task {
 /// load a specific article from the database
 let loadArticleFromDB connectionString article = task {
 
-    let! results = task {
-        let! articleBlob = getArticlesBlob connectionString
+    let results = 
+        let articleBlob = getArticlesBlob connectionString
         // TODO: Find articles that should be displayed to the specific user
-        return! articleBlob.DownloadTextAsync()
-    }
+        articleBlob.DownloadTextAsync().Result
+        
     let articles = 
         results.Split '\n'
         |> Array.filter (fun a -> a <> "")
