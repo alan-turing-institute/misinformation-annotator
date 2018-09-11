@@ -74,9 +74,9 @@ let main args =
 
         let database =
             args
-            |> List.tryFind(fun arg -> arg.StartsWith "AzureConnection=")
+            |> List.tryFind(fun arg -> arg.StartsWith "--AzureConnection=")
             |> Option.map(fun arg ->
-                arg.Substring "AzureConnection=".Length
+                arg.Substring "--AzureConnection=".Length
                 |> ServerCode.Storage.AzureBlob.AzureConnection
                 |> Database.DatabaseType.AzureStorage)
             |> Option.defaultValue Database.DatabaseType.FileSystem
