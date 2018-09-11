@@ -112,6 +112,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | FetchError e ->
         Browser.console.log(e.Message)
         Browser.console.log(e)
+        Browser.console.log(model)
         { model with ErrorMsg = Some e.Message }, Cmd.none, NoOp
        
     | SelectArticle a ->

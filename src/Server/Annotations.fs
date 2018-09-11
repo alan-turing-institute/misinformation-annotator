@@ -11,6 +11,7 @@ open ServerTypes
 let getAnnotations (getArticleFromDB : string -> Task<ArticleList>) (token : UserRights) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
+            printfn "Trying to GET annotations"
             let! annotations = getArticleFromDB token.UserName
             return! ctx.WriteJsonAsync annotations
         }

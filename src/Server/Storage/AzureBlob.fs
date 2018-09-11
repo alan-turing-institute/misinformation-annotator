@@ -7,6 +7,7 @@ open System
 open System.Threading.Tasks
 open FSharp.Control.Tasks.ContextInsensitive
 open Newtonsoft.Json
+open Microsoft.Extensions.Logging
 
 type AzureConnection =
     | AzureConnection of string
@@ -49,39 +50,43 @@ let getArticlesFromDB connectionString userName = task {
         
     return
         { UserName = userName
-          Articles =
+          Articles = []
           (*
             [ for article in articles ->
                 { Title = getTitle article
                   ID = article.article_url
                   Text = None}, false ]
                   *)
-            [ for i in 1..5 -> { Title = "Article " + string i; ID = string i; Text = None}, false ]              
+//            [ for i in 1..5 -> { Title = "Article " + string i; ID = string i; Text = None}, false ]              
                    } }
 
 /// load a specific article from the database
 let loadArticleFromDB connectionString article = task {
 
-    let results = 
-        let articleBlob = getArticlesBlob connectionString
-        // TODO: Find articles that should be displayed to the specific user
-        articleBlob.DownloadTextAsync().Result
+    // let results = 
+    //     let articleBlob = getArticlesBlob connectionString
+    //     // TODO: Find articles that should be displayed to the specific user
+    //     articleBlob.DownloadTextAsync().Result
         
-    let articles = 
-        results.Split '\n'
-        |> Array.filter (fun a -> a <> "")
-        |> Array.map (fun articleLine ->
-                articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
-            )
+    // let articles = 
+    //     results.Split '\n'
+    //     |> Array.filter (fun a -> a <> "")
+    //     |> Array.map (fun articleLine ->
+    //             articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
+    //         )
 
-    let selectedArticle = 
-        articles
-        |> Array.find (fun a -> a.article_url = article)
+    // let selectedArticle = 
+    //     articles
+    //     |> Array.find (fun a -> a.article_url = article)
 
    return
-        { Title = getTitle selectedArticle; 
-          ID = selectedArticle.article_url
-          Text = Some selectedArticle.content }
+        // { Title = getTitle selectedArticle; 
+        //   ID = selectedArticle.article_url
+        //   Text = Some selectedArticle.content }
+        { Title = "Some title"; 
+          ID = "url"
+          Text = None }
+
     }
 
 let loadArticleAnnotationsFromDB articleId userName = task {
