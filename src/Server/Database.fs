@@ -32,7 +32,7 @@ let getDatabase databaseType startupTime =
             member __.GetLastResetTime () = task {
                 let! resetTime = Storage.AzureBlob.getLastResetTime connection
                 return resetTime |> Option.defaultValue startupTime } 
-            member __.LoadArticleAnnotations articleId userName = Storage.AzureBlob.loadArticleAnnotationsFromDB articleId userName
+            member __.LoadArticleAnnotations articleId userName = Storage.AzureBlob.loadArticleAnnotationsFromDB connection articleId userName
         }
 
     | DatabaseType.FileSystem ->

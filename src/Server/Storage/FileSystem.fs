@@ -45,13 +45,13 @@ let getArticlesFromDB userName =
             if isAnnotated then filename, true else filename, false)
 
     { UserName = userName
-      Articles = [ for i in 1..5 -> { Title = "FS Article " + string i; ID = string i; Text = None}, false ]              
-        // annotated
-        // |> Array.map (fun (filename, ann) -> 
-        //     { Title = File.ReadAllLines(filename).[0].Replace("<h1>", "").Replace("</h1>","")
-        //       ID = filename 
-        //       Text = None }, ann)
-        // |> List.ofArray
+      Articles = 
+        annotated
+        |> Array.map (fun (filename, ann) -> 
+            { Title = File.ReadAllLines(filename).[0].Replace("<h1>", "").Replace("</h1>","")
+              ID = filename 
+              Text = None }, ann)
+        |> List.ofArray
     }
 
 
