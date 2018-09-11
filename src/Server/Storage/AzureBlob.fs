@@ -28,10 +28,10 @@ let getTitle (a:ArticleDBData) =
 
 /// Load list of articles from the database
 let getArticlesFromDB connectionString userName = task {
-    let results = 
-        let articleBlob = getArticlesBlob connectionString
-        // TODO: Find articles that should be displayed to the specific user
-        articleBlob.DownloadTextAsync().Result
+    // let results = 
+    //     let articleBlob = getArticlesBlob connectionString
+    //     // TODO: Find articles that should be displayed to the specific user
+    //     articleBlob.DownloadTextAsync().Result
 
     (*
     let! results = task {
@@ -40,20 +40,24 @@ let getArticlesFromDB connectionString userName = task {
         return! articleBlob.DownloadTextAsync()
     }
     *)
-    let articles = 
-        results.Split '\n'
-        |> Array.filter (fun a -> a <> "")
-        |> Array.map (fun articleLine ->
-                articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
-            )
+    // let articles = 
+    //     results.Split '\n'
+    //     |> Array.filter (fun a -> a <> "")
+    //     |> Array.map (fun articleLine ->
+    //             articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
+    //         )
         
     return
         { UserName = userName
           Articles =
+          (*
             [ for article in articles ->
                 { Title = getTitle article
                   ID = article.article_url
-                  Text = None}, false ] } }
+                  Text = None}, false ]
+                  *)
+            [ for i in 1..5 -> { Title = "Article " + string i; ID = string i; Text = None}, false ]              
+                   } }
 
 /// load a specific article from the database
 let loadArticleFromDB connectionString article = task {

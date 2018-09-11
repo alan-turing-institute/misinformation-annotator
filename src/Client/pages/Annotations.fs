@@ -57,6 +57,7 @@ let getResetTime token =
     }
 
 let loadAnnotationsCmd token =
+    Browser.console.log("Requesting articles")
     Cmd.ofPromise getAnnotations token FetchedAnnotations FetchError
 
 let loadResetTimeCmd token =
