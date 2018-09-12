@@ -13,6 +13,7 @@ open ServerCode
 open ServerCode.Domain
 open Style
 open System
+open Fable.Import
 
 type HighlightMode =
     | SourceText of SourceId
@@ -409,7 +410,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
         div [ 
           ClassName "container col-lg-6"
           OnMouseDown (fun e -> 
-            if not (e.target.ToString().Contains "delete-highlight-btn") then
+            let target = e.target |> unbox<Browser.HTMLButtonElement>
+            if not (target.classList.contains "delete-highlight-btn") then
               match model.ShowDeleteSelection with
               | Some _ -> e.preventDefault()
               | None -> ()
