@@ -35,6 +35,9 @@ module.exports = {
   resolve: {
     modules: [ resolve("../../node_modules/")]
   },
+  optimization: {
+		minimize: false
+	}, 
   devServer: {
     proxy: {
       '/api/*': {
