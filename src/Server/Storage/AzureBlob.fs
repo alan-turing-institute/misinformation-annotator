@@ -10,32 +10,134 @@ open FSharp.Control.Tasks.ContextInsensitive
 open Newtonsoft.Json
 open Microsoft.Extensions.Logging
 open Fable.AST.Fable
+open System.Text.RegularExpressions
 
 type AzureConnection =
     | AzureConnection of string
 
 
-let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = task {
-    ()
+let getJSONFileName userName (articleId: string) = 
+    let id = articleId.Replace("/", "-")
+    sprintf "%s/%s.json" userName id
+
+let getAnnotationsBlob (AzureConnection connectionString) userName articleId = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+    let container = blobClient.GetContainerReference("sample-crawl")
+    let annotationBlob = container.GetBlockBlobReference ("annotations/" + (getJSONFileName userName articleId))
+    return annotationBlob }
+
+let getExistingAnnotationBlob (AzureConnection connectionString) userName articleId = task {
+    let! annotationBlob = getAnnotationsBlob (AzureConnection connectionString) userName articleId
+    let! exists = annotationBlob.ExistsAsync()
+    if exists then 
+        return Some annotationBlob
+    else
+        return None
 }
 
-let getArticlesFromDB connectionString userName = task {
-    return { 
-      UserName = userName
-      Articles = [ for i in 1..5 -> { Title = "DB Article " + string i; ID = string i; Text = None}, false ]              
+let checkAnnotationsExist (AzureConnection connectionString) userName (articles : ArticleDBData array) = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+    let container = blobClient.GetContainerReference("sample-crawl")
+
+    let annotations = 
+        articles 
+        |> Array.map (fun article ->
+            let annotationBlob = container.GetBlockBlobReference ("annotations/" + (getJSONFileName userName article.article_url))
+            article, annotationBlob.ExistsAsync().Result)
+
+    return annotations
+}
+    
+let getArticlesBlob (AzureConnection connectionString) = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+    let container = blobClient.GetContainerReference("sample-crawl")
+    let articleBlob = container.GetBlockBlobReference "articles/misinformation.txt"
+    return articleBlob }
+
+let getTitle (a:ArticleDBData) =
+    a.microformat_metadata.opengraph 
+    |> Array.collect (fun og -> 
+        og.properties 
+        |> Array.filter (fun p -> p |> Array.contains "og:title" )
+        |> Array.map (fun a' -> a'.[1]))
+    |> fun arr -> if arr.Length > 0 then arr.[0] else "Unknown title"
+
+let loadArticlesFromFile connectionString = task {
+    let! results = task {
+        let! articleBlob = getArticlesBlob connectionString
+        // TODO: Find articles that should be displayed to the specific user
+        return! articleBlob.DownloadTextAsync()
     }
+    
+    let articles = 
+        results.Split '\n'
+        |> Array.filter (fun a -> a <> "")
+        |> Array.map (fun articleLine ->
+                articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
+            )
+    return articles        
+}
+/// Load list of articles from the database
+let getArticlesFromDB connectionString userName = task {
+    let! articles = loadArticlesFromFile connectionString 
+        
+    let! annotated = checkAnnotationsExist connectionString userName articles
+
+    return
+        { UserName = userName
+          Articles =
+            annotated
+            |> Array.map (fun (article, ann) ->
+                { Title = getTitle article
+                  ID = article.article_url
+                  Text = None}, ann)
+            |> List.ofArray } 
 }
 
 
 
 let loadArticleFromDB connectionString link = task {
-    return { 
-        Title = "Some title"; Text = None; ID = link }
+    let! articles = loadArticlesFromFile connectionString 
+
+    let selectedArticle = 
+        articles
+        |> Array.find (fun a -> a.article_url = link)
+    
+    // strip content off html tags
+    let text = 
+        selectedArticle.content
+        |> Array.collect (fun textBlock ->
+            textBlock.Split("<br> <br>"))
+        |> Array.map (fun paragraph ->
+            Regex.Replace(paragraph, "<.*?>", ""))
+        |> Array.filter (fun paragraph ->
+            paragraph.Trim() <> "")
+
+   return
+        { Title = getTitle selectedArticle; 
+          ID = selectedArticle.article_url
+          Text = Some text }
 }
 
 
+
+let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = task {
+    let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
+    do! annotationBlob.UploadTextAsync(FableJson.toJson annotations)
+    return ()
+}
+
 let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
-    return None
+    let! annotationBlob = getExistingAnnotationBlob connectionString userName articleId
+    match annotationBlob with
+    | Some blob ->
+        let! text = blob.DownloadTextAsync()
+        let ann = 
+            text
+            |> FableJson.ofJson<ArticleAnnotations>
+        return Some ann
+    | None -> 
+        return None
 }
 
 

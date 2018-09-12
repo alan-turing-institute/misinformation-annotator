@@ -92,7 +92,8 @@ let init (user:UserData) =
       SelectedArticle = None },
         Cmd.batch [
             loadAnnotationsCmd user.Token
-            loadResetTimeCmd user.Token ]
+            //loadResetTimeCmd user.Token 
+            ]
 
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with

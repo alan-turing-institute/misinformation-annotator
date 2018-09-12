@@ -88,7 +88,8 @@ let postAnswers (model: Model) =
                 Title = model.Heading
                 ArticleID = model.Link
                 Annotations = model.SourceInfo
-                MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes } []
+                MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes
+                CreatedUTC = Some DateTime.UtcNow } []
         let! resp = response.json<AnswersResponse>()
         return resp }
 

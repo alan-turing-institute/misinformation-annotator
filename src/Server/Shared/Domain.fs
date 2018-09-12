@@ -87,7 +87,9 @@ type ArticleAnnotations =
     Title: string
     ArticleID: string // article ID / link
     Annotations: SourceInfo []
-    MinutesSpent: float }
+    MinutesSpent: float
+    CreatedUTC: DateTime option 
+    }
 
 type AnswersResponse = 
   { Success : bool }
