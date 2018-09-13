@@ -298,3 +298,15 @@ body {
     z-index: 100;
 }
 
+.btn-light {
+    background-color: #e0e0e0;
+}
+
+.btn-secondary {
+    background-color: #e0e0e0;
+}
+
+.btn-disabled {
+    color: grey;
+    background-color: #fafafa;
+}

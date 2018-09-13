@@ -261,9 +261,9 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                       button [
                         (match model.SourceInfo.[n].AnonymousInfo with 
                          | None ->
-                            ClassName "btn btn-light"
+                            ClassName "btn btn-secondary"
                          | Some NoReasonGiven ->
-                            ClassName "btn btn-light"
+                            ClassName "btn btn-disabled"
                          | Some Reason ->
                             ClassName "btn btn-info")
                         OnClick (fun _ -> dispatch (AnonymityReason(n, Reason)))
@@ -271,11 +271,11 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                       button [
                         (match model.SourceInfo.[n].AnonymousInfo with 
                          | None ->
-                            ClassName "btn btn-light"
+                            ClassName "btn btn-secondary"
                          | Some NoReasonGiven ->
                             ClassName "btn btn-info"
                          | Some Reason ->
-                            ClassName "btn btn-light")
+                            ClassName "btn btn-disabled")
                         OnClick (fun _ -> dispatch (AnonymityReason(n, NoReasonGiven)))
                         ] [ str "No" ]
                       ]
