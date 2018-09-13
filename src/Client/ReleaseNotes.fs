@@ -1,10 +1,14 @@
 module internal ReleaseNotes
 
-let Version = "0.1.6.2"
+let Version = "0.1.7"
 
 let IsPrerelease = false
 
 let Notes = """
+### 0.1.7 - 2018-09-13
+* Added multiple users
+* Various bits and pieces
+
 ### 0.1.6.2 - 2018-09-12
 * Debugging deleting of highlights
 
