@@ -21,15 +21,14 @@ let getAnnotations userName =
     |> Array.map (fun s -> s.Replace(userName + "-", ""))
 
 let saveAnnotationsToDB (annotations: ArticleAnnotations) =
-    (*
-        let fi = FileInfo(getJSONFileName annotations.UserName)
-        if not fi.Directory.Exists then
-            fi.Directory.Create()
-        File.WriteAllText(fi.FullName, FableJson.toJson annotations)
-    *)
     let fi = FileInfo(getJSONFileName annotations.User.UserName annotations.ArticleID)
     File.WriteAllText(fi.FullName, FableJson.toJson annotations)
     ()
+
+let deleteAnnotationsFromDB (annotations: ArticleAnnotations) =
+    let fi = FileInfo(getJSONFileName annotations.User.UserName annotations.ArticleID)
+    File.Delete(fi.FullName)
+    not (File.Exists(fi.FullName))
 
 let getArticlesFromDB userName =
     let articles = getArticles userName
@@ -73,3 +72,18 @@ let loadArticleAnnotationsFromDB articleId userName : ArticleAnnotations option 
         |> Some
     else 
         None
+
+let IsValidUser userName password = 
+    if ((userName = "test" && password = "test") ||
+        (userName = "test2" && password = "test2")) then
+        Some ({
+            UserName = userName
+            Proficiency = UserProficiency.Training
+            Token =
+                ServerCode.JsonWebToken.encode (
+                    { UserName = userName } : ServerTypes.UserRights
+                )
+        } : Domain.UserData)
+    else 
+        None    
+    

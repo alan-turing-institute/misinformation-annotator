@@ -12,9 +12,6 @@ type Login =
       Password   : string
       PasswordId : Guid }
 
-    member this.IsValid() =
-        not ((this.UserName <> "test"  || this.Password <> "test") &&
-             (this.UserName <> "test2" || this.Password <> "test2"))
 
 type UserProficiency =
     | Training
@@ -90,6 +87,11 @@ type ArticleAnnotations =
     MinutesSpent: float
     CreatedUTC: DateTime option 
     }
+
+type Action = Save | Delete
+type ArticleAnnotationAction = 
+    { Annotations: ArticleAnnotations
+      Action: Action }
 
 type AnswersResponse = 
   { Success : bool }

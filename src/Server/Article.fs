@@ -54,10 +54,16 @@ let getResetTime (getLastResetTime: unit -> Task<System.DateTime>) : HttpHandler
 
 //TODO
 
-let postAnswers (saveToDB : ArticleAnnotations -> Task<unit>) : HttpHandler =
+let postAnswers (saveToDB : ArticleAnnotations -> Task<unit>)  (deleteFromDB : ArticleAnnotations -> Task<bool>) : HttpHandler =
     fun (next: HttpFunc) (ctx: HttpContext) ->
         task {
-            let! answers = ctx.BindJsonAsync<Domain.ArticleAnnotations>()
-            let! result = saveToDB answers
-            return! ctx.WriteJsonAsync({ Success = true })
+            
+            let! annaction = ctx.BindJsonAsync<Domain.ArticleAnnotationAction>()
+            match annaction.Action with
+            | Save ->
+                let! result = saveToDB annaction.Annotations
+                return! ctx.WriteJsonAsync({ Success = true })
+            | Delete ->
+                let! result = deleteFromDB annaction.Annotations
+                return! ctx.WriteJsonAsync({ Success = result })
         }

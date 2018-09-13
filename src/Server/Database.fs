@@ -16,9 +16,11 @@ type DatabaseType =
 type IDatabaseFunctions =
     abstract member LoadArticles : string -> Task<Domain.ArticleList>
     abstract member SaveAnnotations : Domain.ArticleAnnotations -> Task<unit>
+    abstract member DeleteAnnotations : Domain.ArticleAnnotations -> Task<bool>
     abstract member GetLastResetTime : unit -> Task<System.DateTime>
     abstract member LoadArticle : string -> Task<Domain.Article>
     abstract member LoadArticleAnnotations : string -> string -> Task<Domain.ArticleAnnotations option>
+    abstract member IsValidUser : string -> string -> Task<UserData option>
 
 /// Start the web server and connect to database
 let getDatabase databaseType startupTime =
@@ -29,17 +31,22 @@ let getDatabase databaseType startupTime =
             member __.LoadArticles key = Storage.AzureBlob.getArticlesFromDB connection key
             member __.LoadArticle key = Storage.AzureBlob.loadArticleFromDB connection key
             member __.SaveAnnotations annotations = Storage.AzureBlob.saveAnnotationsToDB connection annotations
+            member __.DeleteAnnotations annotations = Storage.AzureBlob.deleteAnnotationsFromDB connection annotations 
             member __.GetLastResetTime () = task {
                 let! resetTime = Storage.AzureBlob.getLastResetTime connection
                 return resetTime |> Option.defaultValue startupTime } 
             member __.LoadArticleAnnotations articleId userName = Storage.AzureBlob.loadArticleAnnotationsFromDB connection articleId userName
+            member __.IsValidUser userName password = Storage.AzureBlob.IsValidUser connection userName password
         }
 
     | DatabaseType.FileSystem ->
         { new IDatabaseFunctions with
             member __.LoadArticles key = task { return Storage.FileSystem.getArticlesFromDB key }
             member __.SaveAnnotations annotations = task { return Storage.FileSystem.saveAnnotationsToDB annotations }
+            member __.DeleteAnnotations annotations = task { return Storage.FileSystem.deleteAnnotationsFromDB annotations }
             member __.GetLastResetTime () = task { return startupTime } 
             member __.LoadArticle key = task { return Storage.FileSystem.loadArticleFromDB key }
-            member __.LoadArticleAnnotations articleId userName = task { return Storage.FileSystem.loadArticleAnnotationsFromDB articleId userName } }
+            member __.LoadArticleAnnotations articleId userName = task { return Storage.FileSystem.loadArticleAnnotationsFromDB articleId userName }
+            member __.IsValidUser userName password = task { return Storage.FileSystem.IsValidUser userName password } 
+        }
             

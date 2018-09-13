@@ -39,6 +39,7 @@ type Model = {
 
 type Msg = 
     | View
+    | Reset
     | FetchedArticle of Article * ArticleAnnotations option
     | FetchError of exn
     | SubmitError of exn
@@ -51,6 +52,7 @@ type Msg =
     | AddSource of int
     | SubmitAnnotations
     | Submitted of AnswersResponse
+    | DeletedAnnotations of AnswersResponse
     | ShowDeleteButton of (SourceId * HighlightType * Selection) 
     | RemoveDeleteButton
     | DeleteSelection of (SourceId * HighlightType * Selection)
@@ -83,19 +85,38 @@ let fetchArticleCmd article user =
 let postAnswers (model: Model) = 
     promise {
         let url = ServerUrls.APIUrls.Answers
-        let! response = 
-            Fetch.postRecord url { 
+        let ann = { 
                 User = model.User
                 Title = model.Heading
                 ArticleID = model.Link
                 Annotations = model.SourceInfo
                 MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes
-                CreatedUTC = Some DateTime.UtcNow } []
+                CreatedUTC = Some DateTime.UtcNow }
+        let! response = 
+            Fetch.postRecord url { Annotations = ann; Action = Save } []
         let! resp = response.json<AnswersResponse>()
         return resp }
 
 let postAnswersCmd model = 
     Cmd.ofPromise postAnswers model Submitted SubmitError
+
+let deleteAnnotations (model: Model) =
+    promise {
+        let url = ServerUrls.APIUrls.Answers
+        let ann = { 
+                User = model.User
+                Title = model.Heading
+                ArticleID = model.Link
+                Annotations = model.SourceInfo
+                MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes
+                CreatedUTC = Some DateTime.UtcNow }
+        let! response = 
+            Fetch.postRecord url { Annotations = ann; Action = Delete } []
+        let! resp = response.json<AnswersResponse>()
+        return resp }
+
+let deleteAnnotationsCmd model =
+    Cmd.ofPromise deleteAnnotations model DeletedAnnotations SubmitError
 
 let init (user:UserData) (article: Article)  = 
     { 
@@ -210,9 +231,9 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
         h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
         ol [ ] [
             yield li [ ] 
-               [ str "Highlight the portion of the text where you find the source."
+               [ str "Highlight the portion of the text that refers to this source."
                  br []
-                 str "There may be multiple sections in the text that refer to the same source. Click Start to start highlighting, and Finish to complete highlighting."
+                 str "There may be multiple sections in the text that refer to the same source - please highlight all of them. Click Start to start highlighting, and Finish to complete highlighting."
                  br []
                  button [ OnClick (fun _ -> dispatch (HighlightSource n))
                           (match model.SourceSelectionMode with
@@ -283,7 +304,7 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
               if model.SourceInfo.[n].AnonymousInfo = Some(Reason) then
                 yield! [
                   yield 
-                    li [] [ str "Please highlight the text of the reason(s) for anonymity."]
+                    li [] [ str "Please highlight the portion of the text where the reason for anonymity is given."]
                   yield 
                     button [
                         (match model.SourceSelectionMode with
@@ -459,6 +480,9 @@ let view (model:Model) (dispatch: Msg -> unit) =
           match model.Submitted with
           | Some true ->
             yield h5 [] [ str "Submitted" ]
+            yield button [ OnClick (fun _ -> dispatch Reset )
+                           ClassName "btn btn-warning" ] 
+                          [ str "Clear and start again" ]
           | Some false | None ->              
             yield h4 [] [ str "Does the article mention any sources?" ]
             yield button [ 
@@ -543,6 +567,19 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | View -> 
         Browser.console.log("View message in update")
         model |> isCompleted, Cmd.none, NoOp //DisplayArticle model.Article
+
+    | Reset ->
+        { model with
+            MentionsSources = None
+            SourceInfo = [||]
+            SourceSelectionMode = NoHighlight
+            ShowDeleteSelection = None
+            Completed = false
+            Submitted = None }, 
+        deleteAnnotationsCmd model, NoOp
+
+    | DeletedAnnotations _ ->
+        model, Cmd.none, NoOp
 
     | TextSelected (id, selection) ->
         if model.SourceInfo.Length < id+1 

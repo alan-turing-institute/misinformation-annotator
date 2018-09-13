@@ -120,11 +120,15 @@ let loadArticleFromDB connectionString link = task {
 }
 
 
-
 let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = task {
     let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
     do! annotationBlob.UploadTextAsync(FableJson.toJson annotations)
     return ()
+}
+
+let deleteAnnotationsFromDB connectionString (annotations: ArticleAnnotations) = task {
+    let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
+    return! annotationBlob.DeleteIfExistsAsync()
 }
 
 let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
@@ -158,4 +162,40 @@ let getLastResetTime connectionString = task {
     let! blob = StateManagement.resetTimeBlob connectionString
     do! blob.FetchAttributesAsync()
     return blob.Properties.LastModified |> Option.ofNullable |> Option.map (fun d -> d.UtcDateTime)
+}
+
+
+let IsValidUser (AzureConnection connectionString) userName password = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+    let container = blobClient.GetContainerReference("sample-crawl")
+
+    let! text = task {
+        let blob = container.GetBlockBlobReference ("users.csv")
+        return! blob.DownloadTextAsync()
+    }
+
+    let data = 
+        text.Split '\n'
+        |> fun t -> t.[1..] // split header
+        |> Array.filter (fun line -> line <> "")
+        |> Array.map (fun line -> line.Split ',' |> Array.map (fun s -> s.Trim()))
+        |> Array.filter (fun line ->
+            line.[1] = userName && line.[2] = password)
+    if data.Length <> 1 then 
+        return None
+    else    
+        let userData = data |> Array.exactlyOne
+        let user = {
+            UserName = userData.[1]
+            Proficiency = 
+                match userData.[3] with
+                | "Training" -> Training
+                | "User" -> User
+                | "Expert" -> Expert
+                | _ -> Training
+            Token = ServerCode.JsonWebToken.encode (
+                     { UserName = userData.[1] } : ServerTypes.UserRights
+                    )            
+        }    
+        return Some user
 }

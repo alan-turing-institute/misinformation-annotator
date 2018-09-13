@@ -2,6 +2,7 @@
 module ServerCode.Auth
 
 open System
+open System.Threading.Tasks
 open Giraffe
 open RequestErrors
 open Microsoft.AspNetCore.Http
@@ -19,16 +20,16 @@ let createUserData (login : Domain.Login) =
     } : Domain.UserData
 
 /// Authenticates a user and returns a token in the HTTP body.
-let login : HttpHandler =
+let login (validateUser : string -> string ->  Task<UserData option>) : HttpHandler =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
             let! login = ctx.BindJsonAsync<Domain.Login>()
+            let! result = validateUser login.UserName login.Password
             return!
-                match login.IsValid() with
-                | true  ->
-                    let data = createUserData login
+                match result with
+                | Some(data) ->
                     ctx.WriteJsonAsync data
-                | false -> UNAUTHORIZED "Bearer" "" (sprintf "User '%s' can't be logged in." login.UserName) next ctx
+                | None -> UNAUTHORIZED "Bearer" "" (sprintf "User '%s' can't be logged in." login.UserName) next ctx
         }
 
 let private missingToken = RequestErrors.BAD_REQUEST "Request doesn't contain a JSON Web Token"
