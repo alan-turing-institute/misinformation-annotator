@@ -78,11 +78,22 @@ Don't worry the file is already in `.gitignore` so your password will not be com
 
 #### Docker push
 
-In order to release a container you need to create a new entry in [RELEASE_NOTES.md] and run `release.sh`.
+In order to release a container you need to create a new entry in `RELEASE_NOTES.md` and run `release.sh`.
 This will build the server and client, run all test, put the app into a docker container and push it to your docker hub repo.
 This triggers a webhook for Azure, which deploys the app.
 
 You should be able to reach the website on [misinformation.azurewebsites.net](http://misinformation.azurewebsites.net).
+
+#### Notes
+
+- The app is deployed using the Azure *Web app for containers* resource
+- Once deployed, go to Container settings and edit the Startup file:
+
+        Server.dll --AzureConnection="Azure storage connection string"
+
+- The webhook URL in container settings is used in the Docker hub repo
+- For additional information see [SAFE BookStore app](https://github.com/SAFE-Stack/SAFE-BookStore)
+
 
 ## Using the website
 
