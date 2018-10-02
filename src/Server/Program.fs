@@ -71,15 +71,6 @@ let main args =
                     if Directory.Exists devPath then devPath
                     else @"./client"
             |> Path.GetFullPath
-
-        // let database =
-        //     args
-        //     |> List.tryFind(fun arg -> arg.StartsWith "--AzureConnection=")
-        //     |> Option.map(fun arg ->
-        //         arg.Substring "--AzureConnection=".Length
-        //         |> ServerCode.Storage.AzureBlob.AzureConnection
-        //         |> Database.DatabaseType.AzureStorage)
-        //     |> Option.defaultValue Database.DatabaseType.FileSystem
       
         let storageEnvVar = "CUSTOMCONNSTR_BLOBSTORAGE"
         let connStr = GetEnvVar storageEnvVar
