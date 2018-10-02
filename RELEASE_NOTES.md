@@ -1,3 +1,6 @@
+### 0.1.7.1 - 2018-10-02
+* Fixed storage connection
+
 ### 0.1.7 - 2018-09-13
 * Added multiple users
 * Various bits and pieces
