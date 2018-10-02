@@ -78,11 +78,17 @@ type SourceInfo = {
     AnonymityReason : (Selection list) option
 }
 
+type ArticleSourceType =
+    | Sourced
+    | Unsourced
+    | NotRelevant
+
 type ArticleAnnotations =
   { 
     User: UserData
     Title: string
     ArticleID: string // article ID / link
+    ArticleType: ArticleSourceType
     Annotations: SourceInfo []
     MinutesSpent: float
     CreatedUTC: DateTime option 

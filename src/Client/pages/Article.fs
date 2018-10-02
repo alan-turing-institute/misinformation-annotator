@@ -28,8 +28,7 @@ type Model = {
     Heading: string
     Text: string [] 
     Link: string
-    Tags: string list
-    MentionsSources: bool option
+    MentionsSources: ArticleSourceType option
     SourceInfo : SourceInfo []
     SourceSelectionMode : HighlightMode
     ShowDeleteSelection : (SourceId * HighlightType * Selection) option
@@ -45,7 +44,7 @@ type Msg =
     | SubmitError of exn
     | FetchArticle
     | TextSelected of (SourceId *Selection) 
-    | MentionsSources of bool
+    | MentionsSources of ArticleSourceType
     | HighlightSource of SourceId
     | FinishedHighlighting
     | ClearHighlights of int
@@ -89,6 +88,7 @@ let postAnswers (model: Model) =
                 User = model.User
                 Title = model.Heading
                 ArticleID = model.Link
+                ArticleType = model.MentionsSources.Value
                 Annotations = model.SourceInfo
                 MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes
                 CreatedUTC = Some DateTime.UtcNow }
@@ -107,6 +107,7 @@ let deleteAnnotations (model: Model) =
                 User = model.User
                 Title = model.Heading
                 ArticleID = model.Link
+                ArticleType = model.MentionsSources.Value
                 Annotations = model.SourceInfo
                 MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes
                 CreatedUTC = Some DateTime.UtcNow }
@@ -123,7 +124,6 @@ let init (user:UserData) (article: Article)  =
       User = user
       Heading = article.Title
       Text = match article.Text with | Some t -> t | None -> [||]
-      Tags = []
       Link = article.ID 
       MentionsSources = None 
       SourceInfo = [||]
@@ -486,22 +486,31 @@ let view (model:Model) (dispatch: Msg -> unit) =
           | Some false | None ->              
             yield h4 [] [ str "Does the article mention any sources?" ]
             yield button [ 
-                OnClick (fun _ -> dispatch (MentionsSources true)) 
+                OnClick (fun _ -> dispatch (MentionsSources Sourced)) 
                 (match model.MentionsSources with
-                    | Some x -> if x then ClassName "btn btn-primary" else ClassName "btn btn-disabled"
+                    | Some Sourced -> ClassName "btn btn-primary" 
+                    | Some _ -> ClassName "btn btn-disabled"
                     | None -> ClassName "btn btn-light") ]
                 [ str "Yes" ]
             yield button [ 
                 (match model.MentionsSources with
-                  | Some x -> if x then ClassName "btn btn-disabled" else ClassName "btn btn-primary"
+                  | Some Unsourced -> ClassName "btn btn-primary" 
+                  | Some _ -> ClassName "btn btn-disabled"
                   | None -> ClassName "btn btn-light")
-                OnClick (fun _ -> dispatch (MentionsSources false)) ]
+                OnClick (fun _ -> dispatch (MentionsSources Unsourced)) ]
                 [ str "No" ]
-            
+            yield button [ 
+                (match model.MentionsSources with
+                  | Some NotRelevant -> ClassName "btn btn-primary"
+                  | Some _ -> ClassName "btn btn-disabled"
+                  | None -> ClassName "btn btn-light")
+                OnClick (fun _ -> dispatch (MentionsSources NotRelevant)) ]
+                [ str "Mark as not relevant" ]
+
             match model.MentionsSources with
-              | None | Some false ->
+              | None | Some Unsourced | Some NotRelevant ->
                 ()
-              | Some true ->
+              | Some Sourced ->
                  for i in 0..model.SourceInfo.Length-1 do
                       yield viewAddSource model i dispatch
                       
@@ -548,7 +557,8 @@ let checkQuestionsCompleted (model: Model) =
                     if text.Length = 0 then false
                     else true
 
-    if model.MentionsSources = Some false then true else
+    if model.MentionsSources = Some Unsourced then true else
+    if model.MentionsSources = Some NotRelevant then true else
     if model.SourceInfo.Length = 0 then false else
     (true, model.SourceInfo)
     ||> Array.fold (fun state si -> state && isPartCompleted si)
@@ -636,11 +646,19 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         model|> isCompleted, Cmd.none, NoOp
 
     | MentionsSources x ->
-        { model with 
-            MentionsSources = Some x; 
-            SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }
-            |> isCompleted,
-        Cmd.none, NoOp
+        match x with 
+        | Sourced ->
+            { model with 
+                MentionsSources = Some x; 
+                SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }
+                |> isCompleted,
+            Cmd.none, NoOp
+        | Unsourced | NotRelevant ->
+            { model with 
+                MentionsSources = Some x; 
+                SourceInfo = [||] }
+                |> isCompleted,
+            Cmd.none, NoOp        
 
     | HighlightSource n -> 
         { model with SourceSelectionMode = SourceText n } |> isCompleted, 
