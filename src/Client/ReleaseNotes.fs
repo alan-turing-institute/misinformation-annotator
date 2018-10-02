@@ -1,10 +1,13 @@
 module internal ReleaseNotes
 
-let Version = "0.1.7.1"
+let Version = "0.1.7.2"
 
 let IsPrerelease = false
 
 let Notes = """
+### 0.1.7.2 - 2018-10-02
+* Added "not relevant" tag to assign to texts that are not news articles
+
 ### 0.1.7.1 - 2018-10-02
 * Fixed storage connection
 
