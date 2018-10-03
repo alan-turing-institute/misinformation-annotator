@@ -34,7 +34,7 @@ let urlUpdate (result:Page option) (model: Model) =
     | Some Page.Annotations ->
         match model.User with
         | Some user ->
-            let m, cmd = Annotations.init user
+            let m, cmd = Annotations.init(user, model.AllArticles)
             { model with PageModel = AnnotationsModel m }, Cmd.map AnnotationsMsg cmd
         | None ->
             model, Cmd.ofMsg (Logout ())
@@ -47,12 +47,16 @@ let urlUpdate (result:Page option) (model: Model) =
         | Some user -> 
             match model.SelectedArticle with
             | Some article ->
+                Browser.console.log("Updating article?")
                 let m, cmd = Article.init user article
                 { model with PageModel = ArticleModel m }, Cmd.map ArticleMsg cmd
             | None ->
+                Browser.console.log("Article - nothing changed")
                 model, Cmd.none
         | None -> 
             model, Cmd.ofMsg (Logout())
+
+            
 
 let loadUser () : UserData option =
     BrowserLocalStorage.load "user"
@@ -75,6 +79,7 @@ let init result =
         let model =
             { User = user
               SelectedArticle = None
+              AllArticles = None
               PageModel = HomePageModel }
 
         urlUpdate result model
@@ -122,6 +127,12 @@ let update msg model =
                     Navigation.newUrl (toPath Page.Article) 
                     ]
 
+        | Annotations.ExternalMsg.CacheAllArticles articles ->
+            { model with 
+                AllArticles = Some articles
+                PageModel = AnnotationsModel m},
+                Cmd.map AnnotationsMsg cmd
+
     | AnnotationsMsg _, _ ->
         model, Cmd.none
 
@@ -141,7 +152,33 @@ let update msg model =
 
     | ArticleMsg msg, ArticleModel m ->
         let m', cmd, externalMsg = Article.update msg m
-        { model with PageModel = ArticleModel m' }, Cmd.map ArticleMsg cmd
+
+        match externalMsg with
+        | Article.ExternalMsg.NoOp ->
+            { model with PageModel = ArticleModel m' }, Cmd.map ArticleMsg cmd
+
+        | Article.ExternalMsg.NextArticle id ->
+            Browser.console.log("Going to the next article...")
+            let nextIdx = 
+                match model.AllArticles with
+                | None -> None
+                | Some allArticles ->
+                    allArticles.Articles
+                    |> List.findIndex (fun (a,_) -> a.ID = id)
+                    |> fun i -> if i+1 = allArticles.Articles.Length then None else Some(i+1)
+            Browser.console.log(string nextIdx)
+            let m'', cmd' = Article.init m'.User (model.AllArticles.Value.Articles.[nextIdx.Value] |> fst)
+
+            { model with
+                PageModel = ArticleModel m''
+                SelectedArticle = 
+                    nextIdx 
+                    |> Option.map (fun i -> model.AllArticles.Value.Articles.[i] |> fst)
+             }, 
+            Cmd.batch [
+                    Cmd.map ArticleMsg cmd'
+                    Navigation.newUrl (toPath Page.Article) 
+                    ]
 
     | ArticleMsg msg, _ ->
         model, Cmd.none

@@ -12,6 +12,7 @@ type PageModel =
 type Model =
     { User : UserData option
       SelectedArticle : Article option
+      AllArticles : ArticleList option
       PageModel : PageModel }
 
 /// The composed set of messages that update the state of the application

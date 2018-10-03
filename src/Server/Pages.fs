@@ -14,6 +14,7 @@ let home: HttpHandler = fun _ ctx ->
             User = None
             PageModel = PageModel.HomePageModel
             SelectedArticle = None
+            AllArticles = None
         }
         return! ctx.WriteHtmlViewAsync (Templates.index (Some model))
     }

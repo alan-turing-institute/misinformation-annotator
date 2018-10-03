@@ -33,6 +33,7 @@ type Msg =
 type ExternalMsg =
     | ViewArticle of Article
     | NoOp
+    | CacheAllArticles of ArticleList
 
 /// Get the wish list from the server, used to populate the model
 let getAnnotations token =
@@ -45,6 +46,11 @@ let getAnnotations token =
         return! Fetch.fetchAs<ArticleList> url props
     }
 
+
+let loadAnnotationsCmd token =
+    Browser.console.log("Requesting articles")
+    Cmd.ofPromise getAnnotations token FetchedAnnotations FetchError
+
 let getResetTime token =
     promise {
         let url = ServerUrls.APIUrls.ResetTime
@@ -55,10 +61,6 @@ let getResetTime token =
         let! details = Fetch.fetchAs<ServerCode.Domain.AnnotationsResetDetails> url props
         return details.Time
     }
-
-let loadAnnotationsCmd token =
-    Browser.console.log("Requesting articles")
-    Cmd.ofPromise getAnnotations token FetchedAnnotations FetchError
 
 let loadResetTimeCmd token =
     Cmd.ofPromise getResetTime token FetchedResetTime FetchError
@@ -82,18 +84,21 @@ let postAnnotationsCmd (token,annotations) =
     Cmd.ofPromise postAnnotations (token,annotations) FetchedAnnotations FetchError
 
 
-let init (user:UserData) =
+let init (user:UserData, articleList : ArticleList option) =
     Browser.console.log("Initializing list of annotations")
-    { Annotations = ArticleList.New user.UserName
+    { Annotations = 
+        match articleList with
+        | None -> ArticleList.New user.UserName
+        | Some a -> a
       Token = user.Token
       UserName = user.UserName
       ResetTime = None
       ErrorMsg = None
-      SelectedArticle = None },
-        Cmd.batch [
-            loadAnnotationsCmd user.Token
-            //loadResetTimeCmd user.Token 
-            ]
+      SelectedArticle = None
+      },
+      match articleList with 
+      | None -> loadAnnotationsCmd user.Token
+      | Some _ -> Cmd.none
 
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
@@ -104,8 +109,8 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Browser.console.log("Fetched annotations - adapting model")
         Browser.console.log(annotations)
         let annotations = 
-            { annotations with Articles = annotations.Articles |> List.sortBy (fun (article, anns) -> article.Title) }
-        { model with Annotations = annotations }, Cmd.none, NoOp
+            { annotations with Articles = annotations.Articles  }
+        { model with Annotations = annotations }, Cmd.none, CacheAllArticles annotations
 
     | FetchedResetTime datetime ->
         { model with ResetTime = Some datetime }, Cmd.none, NoOp

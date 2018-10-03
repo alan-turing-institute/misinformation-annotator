@@ -58,10 +58,11 @@ type Msg =
     | IsSourceAnonymous of (SourceId * bool)
     | AnonymityReason of (SourceId * AnonymousInfo)
     | HighlightReason of SourceId
+    | GoToNextArticle
 
 type ExternalMsg = 
-    | DisplayArticle of Article
     | NoOp    
+    | NextArticle of string // pass the link to the current article
 
 
 let fetchArticle (article : Domain.Article, user : Domain.UserData) =
@@ -480,6 +481,9 @@ let view (model:Model) (dispatch: Msg -> unit) =
           match model.Submitted with
           | Some true ->
             yield h5 [] [ str "Submitted" ]
+            yield button [ OnClick (fun _ -> dispatch GoToNextArticle)
+                           ClassName "btn btn-primary" ]
+                         [ str "Go to next article" ]
             yield button [ OnClick (fun _ -> dispatch Reset )
                            ClassName "btn btn-warning" ] 
                           [ str "Clear and start again" ]
@@ -772,3 +776,6 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | HighlightReason id ->
         { model with SourceSelectionMode = AnonymityText id } |> isCompleted, Cmd.none, NoOp        
+
+    | GoToNextArticle ->
+        model, Cmd.none, NextArticle model.Link
