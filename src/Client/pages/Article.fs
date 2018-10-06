@@ -38,7 +38,7 @@ type Model = {
 
 type Msg = 
     | View
-    | Reset
+    | EditAnnotations
     | FetchedArticle of Article * ArticleAnnotations option
     | FetchError of exn
     | SubmitError of exn
@@ -484,9 +484,9 @@ let view (model:Model) (dispatch: Msg -> unit) =
             yield button [ OnClick (fun _ -> dispatch GoToNextArticle)
                            ClassName "btn btn-primary" ]
                          [ str "Go to next article" ]
-            yield button [ OnClick (fun _ -> dispatch Reset )
-                           ClassName "btn btn-warning" ] 
-                          [ str "Clear and start again" ]
+            yield button [ OnClick (fun _ -> dispatch EditAnnotations )
+                           ClassName "btn btn-light" ] 
+                          [ str "Edit annotations" ]
           | Some false | None ->              
             yield h4 [] [ str "Does the article mention any sources?" ]
             yield button [ 
@@ -582,15 +582,11 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Browser.console.log("View message in update")
         model |> isCompleted, Cmd.none, NoOp //DisplayArticle model.Article
 
-    | Reset ->
-        { model with
-            MentionsSources = None
-            SourceInfo = [||]
-            SourceSelectionMode = NoHighlight
-            ShowDeleteSelection = None
-            Completed = false
-            Submitted = None }, 
-        deleteAnnotationsCmd model, NoOp
+    | EditAnnotations ->
+        { model with 
+            Completed = true
+            Submitted = None },
+        Cmd.none, NoOp
 
     | DeletedAnnotations _ ->
         model, Cmd.none, NoOp
@@ -633,11 +629,15 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         match article.Text with
         | Some t ->         
             Browser.console.log(t.[0])
-
+            
             match annotations with
             | Some a -> 
                 if a.ArticleID = article.ID && a.User.UserName = model.User.UserName then
-                    { model with Text = t; SourceInfo = a.Annotations; Submitted = Some true }
+                    { model with 
+                        Text = t; 
+                        MentionsSources = Some a.ArticleType
+                        SourceInfo = a.Annotations; 
+                        Submitted = Some true }
                     |> isCompleted, Cmd.none, NoOp
                 else
                     Browser.console.log("Annotations loaded for incorrect user.")
