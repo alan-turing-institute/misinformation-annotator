@@ -159,6 +159,19 @@ let update msg model =
 
         | Article.ExternalMsg.NextArticle id ->
             Browser.console.log("Going to the next article...")
+            // mark current article as annotated 
+            let model' = 
+                { model with 
+                   AllArticles = 
+                    model.AllArticles 
+                    |> Option.map (fun aa ->
+                        { aa with 
+                            Articles = 
+                              aa.Articles
+                              |> List.map (fun (a, isAnnotated) -> 
+                                  if a.ID = id then (a, true) else (a, isAnnotated))})}
+
+            // find the next article
             let nextIdx = 
                 match model.AllArticles with
                 | None -> None
@@ -167,9 +180,11 @@ let update msg model =
                     |> List.findIndex (fun (a,_) -> a.ID = id)
                     |> fun i -> if i+1 = allArticles.Articles.Length then None else Some(i+1)
             Browser.console.log(string nextIdx)
+
+            // Create next article model
             let m'', cmd' = Article.init m'.User (model.AllArticles.Value.Articles.[nextIdx.Value] |> fst)
 
-            { model with
+            { model' with
                 PageModel = ArticleModel m''
                 SelectedArticle = 
                     nextIdx 
