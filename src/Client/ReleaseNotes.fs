@@ -1,10 +1,15 @@
 module internal ReleaseNotes
 
-let Version = "0.1.7.2"
+let Version = "0.1.7.3"
 
 let IsPrerelease = false
 
 let Notes = """
+### 0.1.7.3 - 2018-10-07
+* UI fixes
+    * Go to next article directly
+    * Allow editing
+
 ### 0.1.7.2 - 2018-10-02
 * Added "not relevant" tag to assign to texts that are not news articles
 
