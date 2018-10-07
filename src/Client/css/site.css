@@ -310,3 +310,37 @@ body {
     color: grey;
     background-color: #fafafa;
 }
+
+.annotated {
+    color: grey;
+    background-color: #ededed;
+}
+
+.annotated td {
+    color: grey;
+    background-color: #ededed;  
+}
+
+.annotated :hover {
+    background-color: #e1e1e1;
+}
+
+.to-annotate {
+    color: black;
+    background-color: white;
+}
+
+.to-annotate :hover {
+    color: black;
+    background-color: #e7e1ef;
+}
+
+.to-annotate td {
+    color: black;
+    background-color: transparent;    
+}
+
+.to-annotate a {
+    color: black;
+    background-color: transparent;    
+}

@@ -482,7 +482,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
           | Some true ->
             yield h5 [] [ str "Submitted" ]
             yield button [ OnClick (fun _ -> dispatch GoToNextArticle)
-                           ClassName "btn btn-primary" ]
+                           ClassName "btn btn-success" ]
                          [ str "Go to next article" ]
             yield button [ OnClick (fun _ -> dispatch EditAnnotations )
                            ClassName "btn btn-light" ] 

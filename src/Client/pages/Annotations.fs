@@ -125,25 +125,19 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with SelectedArticle = Some a }, Cmd.none, ViewArticle a
 
 
-type [<Pojo>] ArticleProps = { key: string; article: Article; viewArticle: unit -> unit; annotated : bool }
-
-let articleComponent { article = article; viewArticle = viewArticle; annotated = annotated } =
-  tr [] [
+let viewArticleComponent article annotated (dispatch: Msg -> unit) =
+  tr [ OnClick (fun _ -> dispatch (SelectArticle article)) 
+       ClassName (if annotated then "annotated" else "to-annotate")] [
     td [] [
-        if String.IsNullOrWhiteSpace article.ID then
-            yield str article.Title
-        else
-            yield str article.Title 
+            yield buttonLink "" (fun _ -> dispatch (SelectArticle article)) [ str article.Title ] 
         ]
     td [] [
         if annotated then
-           yield buttonLink "" viewArticle [ str "✅ View"] 
+           yield str "Submitted"
         else  
-           yield buttonLink "" viewArticle  [ str "Annotate" ] 
+           yield str "Annotate" 
       ]
     ]
-
-let inline ArticleComponent props = (ofFunction articleComponent) props []
 
 let view (model:Model) (dispatch: Msg -> unit) =
     div [] [
@@ -157,16 +151,12 @@ let view (model:Model) (dispatch: Msg -> unit) =
                         th [] [str ""]
                 ]
             ]
-            tbody [] [
+            tbody [] (
                 model.Annotations.Articles
-                    |> List.map(fun (article, annotated) ->
-                        ArticleComponent {
-                            key = article.Title
-                            article = article
-                            viewArticle = (fun _ -> dispatch (SelectArticle article))
-                            annotated = annotated
-                        })
-                    |> ofList
-            ]
+                |> List.map(fun (article, annotated) ->
+                    viewArticleComponent article annotated dispatch
+                    )
+                //
+            )
         ]
     ]
