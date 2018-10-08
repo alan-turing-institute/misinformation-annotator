@@ -228,7 +228,7 @@ let getSelection (model: Model) e : SelectionResult =
     | _ -> NoSelection
     
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
-    div [ClassName "container col-lg-12"] [
+    div [ClassName "container col-sm-12"] [
         h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
         ol [ ] [
             yield li [ ] 
@@ -430,7 +430,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
       div [ ClassName "row row-height" ] [
        yield 
         div [ 
-          ClassName "container col-lg-6 left"
+          ClassName "container col-md-6 left"
           OnMouseDown (fun e -> 
             let target = e.target |> unbox<Browser.HTMLButtonElement>
             if not (target.classList.contains "delete-highlight-btn") then
@@ -477,7 +477,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
           yield hr []
          ]
 
-       yield div [ ClassName "container questionnaire col-lg-6 right" ] [
+       yield div [ ClassName "container col-md-6 right" ] [
+         div [ ClassName "questionnaire w-100"] [
           match model.Submitted with
           | Some true ->
             yield h5 [] [ str "Submitted" ]
@@ -537,7 +538,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
                         yield span [] [str "Cannot submit - please contact the admin."]
                 ]
         ]
-        ]
+       ]
+       ]
       ]
     ]
 
