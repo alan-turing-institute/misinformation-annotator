@@ -427,10 +427,10 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
 let view (model:Model) (dispatch: Msg -> unit) =
   [
     div [ ClassName "col-md-10"] [
-      div [ ClassName "row" ] [
+      div [ ClassName "row row-height" ] [
        yield 
         div [ 
-          ClassName "container col-lg-6"
+          ClassName "container col-lg-6 left"
           OnMouseDown (fun e -> 
             let target = e.target |> unbox<Browser.HTMLButtonElement>
             if not (target.classList.contains "delete-highlight-btn") then
@@ -477,7 +477,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
           yield hr []
          ]
 
-       yield div [ ClassName "container questionnaire col-lg-6" ] [
+       yield div [ ClassName "container questionnaire col-lg-6 right" ] [
           match model.Submitted with
           | Some true ->
             yield h5 [] [ str "Submitted" ]

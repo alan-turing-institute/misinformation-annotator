@@ -344,3 +344,18 @@ body {
     color: black;
     background-color: transparent;    
 }
+
+.row-height{
+    height: 100vh;
+}
+
+.left{
+height: 100%;
+overflow-y: scroll;
+}
+
+.right{
+height: 100%;
+overflow-y: scroll;
+}
+  
