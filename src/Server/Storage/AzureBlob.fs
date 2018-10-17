@@ -37,7 +37,12 @@ let toUnicode (str: string) =
        .Replace("\\u201c", "'")
        .Replace("\\u201d", "'")
        .Replace("\\u00a0", " ")
+       .Replace("\\u2010", "-")
+       .Replace("\\u2011", "-")
+       .Replace("\\u2012", "-")
        .Replace("\\u2013", "-")
+       .Replace("\\u2014", "-")
+       .Replace("\\u2015", "-")
        
 
 let selectNumArticlesPerSite numArticlesPerSite sqlConn = 
@@ -168,20 +173,14 @@ let loadArticlesFromSQLDatabase connectionString = task {
 /// Load list of articles from the database
 let getArticlesFromDB connectionString userName = task {
     //let! articles = loadArticlesFromFile connectionString
-    printfn "Trying to load articles from database..."
     let! articles = loadArticlesFromSQLDatabase connectionString 
-    printfn "Finished!"
-
     let! annotated = checkAnnotationsExist connectionString userName articles
-
-    printfn "annotations fetched"
 
     let result =         
         { UserName = userName
           Articles =
             annotated
             |> Array.mapi (fun i (article, ann) ->
-                printfn "%A" i
                 let title = 
                     let regex = Regex.Match(article.Metadata, "\"name\": \[\"(.*?)\"\]")
                     if regex.Success then
@@ -193,7 +192,6 @@ let getArticlesFromDB connectionString userName = task {
                   Text = None}, ann)
             |> List.ofArray } 
 
-    printfn "Result fine"
     return result
 }
 
@@ -228,6 +226,7 @@ let loadArticleFromDB connectionString link = task {
     let text = 
         article.Content.Value.Replace("[\"","").Replace("\"]","")
         |> fun s -> s.Split("</p>\", \"<p>")
+        |> Array.collect (fun tx -> tx.Split('\n'))
         |> Array.map (fun paragraph ->
             Regex.Replace(paragraph, "<.*?>", ""))
         |> Array.filter (fun paragraph ->

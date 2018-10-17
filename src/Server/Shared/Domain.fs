@@ -76,6 +76,7 @@ type SourceInfo = {
     SourceType : SourceType option
     AnonymousInfo : AnonymousInfo option
     AnonymityReason : (Selection list) option
+    UserNotes : string option
 }
 
 type ArticleSourceType =

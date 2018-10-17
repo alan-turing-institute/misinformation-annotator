@@ -59,6 +59,7 @@ type Msg =
     | AnonymityReason of (SourceId * AnonymousInfo)
     | HighlightReason of SourceId
     | GoToNextArticle
+    | SetNote of (int * string)
 
 type ExternalMsg = 
     | NoOp    
@@ -92,7 +93,8 @@ let postAnswers (model: Model) =
                 ArticleType = model.MentionsSources.Value
                 Annotations = model.SourceInfo
                 MinutesSpent = (DateTime.Now - model.StartedEditing).TotalMinutes
-                CreatedUTC = Some DateTime.UtcNow }
+                CreatedUTC = Some DateTime.UtcNow
+                }
         let! response = 
             Fetch.postRecord url { Annotations = ann; Action = Save } []
         let! resp = response.json<AnswersResponse>()
@@ -230,6 +232,14 @@ let getSelection (model: Model) e : SelectionResult =
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
     div [ClassName "container col-sm-12"] [
         h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
+        input [ HTMLAttr.Type "text"
+                ClassName "form-control input-md"
+                Placeholder "Notes"
+                DefaultValue ""
+                AutoFocus false
+                OnChange (fun ev -> dispatch (SetNote (n,!!ev.target?value)))
+                ]
+        br []
         ol [ ] [
             yield li [ ] 
                [ str "Highlight the portion of the text that refers to this source."
@@ -656,7 +666,13 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         | Sourced ->
             { model with 
                 MentionsSources = Some x; 
-                SourceInfo = [| { SourceID = 0; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }
+                SourceInfo = 
+                  [|  { SourceID = 0; 
+                        TextMentions = []; 
+                        SourceType = None; 
+                        AnonymousInfo = None; 
+                        AnonymityReason = None
+                        UserNotes = None } |] }
                 |> isCompleted,
             Cmd.none, NoOp
         | Unsourced | NotRelevant ->
@@ -688,7 +704,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             SourceInfo = 
                 Array.append 
                     currentSources 
-                    [| { SourceID = n; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None } |] }
+                    [| { SourceID = n; TextMentions = []; SourceType = None; AnonymousInfo = None; AnonymityReason = None; UserNotes = None } |] }
         |> isCompleted, 
         Cmd.none, NoOp
 
@@ -781,3 +797,9 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | GoToNextArticle ->
         model, Cmd.none, NextArticle model.Link
+
+    | SetNote (sourceIdx, text) ->
+        let sourceInfo = model.SourceInfo
+        sourceInfo.[sourceIdx] <- 
+            { sourceInfo.[sourceIdx] with UserNotes = (if text <> "" then Some text else None) }
+        { model with SourceInfo = sourceInfo }, Cmd.none, NoOp
