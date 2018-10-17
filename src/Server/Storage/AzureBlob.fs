@@ -189,7 +189,8 @@ let getArticlesFromDB connectionString userName = task {
                         string i + " Unable to parse"
                 { Title = title
                   ID = article.ArticleUrl
-                  Text = None}, ann)
+                  Text = None
+                  SourceWebsite = article.SiteName }, ann)
             |> List.ofArray } 
 
     return result
@@ -241,7 +242,8 @@ let loadArticleFromDB connectionString link = task {
             else 
                 "Unable to parse"
           ID = article.ArticleUrl
-          Text = Some text }
+          Text = Some text 
+          SourceWebsite = article.SiteName }
 }
 
 

@@ -49,7 +49,8 @@ let getArticlesFromDB userName =
         |> Array.map (fun (filename, ann) -> 
             { Title = File.ReadAllLines(filename).[0].Replace("<h1>", "").Replace("</h1>","")
               ID = filename 
-              Text = None }, ann)
+              Text = None
+              SourceWebsite = "Just testing" }, ann)
         |> List.ofArray
     }
 
@@ -61,7 +62,7 @@ let loadArticleFromDB link =
     let text = 
         contents.[1..]
         |> Array.map (fun line -> line.Replace("<p>", "").Replace("</p>", ""))
-    { Title = heading; Text = Some text; ID = link }
+    { Title = heading; Text = Some text; ID = link; SourceWebsite = "Just testing" }
 
 
 let loadArticleAnnotationsFromDB articleId userName : ArticleAnnotations option =

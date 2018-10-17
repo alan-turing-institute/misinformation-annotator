@@ -29,12 +29,14 @@ type ArticleText = string []
 type Article =
     { Title: string
       ID: string 
-      Text: ArticleText option } // maybe can remove text from here
+      Text: ArticleText option // maybe can remove text from here
+      SourceWebsite: string } 
 
     static member empty =
         { Title = ""
           ID = "" 
-          Text = None }                    
+          Text = None
+          SourceWebsite = "" }                    
 
 /// The logical representation of the data for /api/annotations
 type Annotated = bool

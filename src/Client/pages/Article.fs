@@ -28,6 +28,7 @@ type Model = {
     Heading: string
     Text: string [] 
     Link: string
+    SourceWebsite: string
     MentionsSources: ArticleSourceType option
     SourceInfo : SourceInfo []
     SourceSelectionMode : HighlightMode
@@ -128,6 +129,7 @@ let init (user:UserData) (article: Article)  =
       Heading = article.Title
       Text = match article.Text with | Some t -> t | None -> [||]
       Link = article.ID 
+      SourceWebsite = article.SourceWebsite
       MentionsSources = None 
       SourceInfo = [||]
       SourceSelectionMode = NoHighlight
@@ -450,6 +452,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
               dispatch RemoveDeleteButton
             else ()) ] [
           yield h1 [] [ str (model.Heading) ]
+          yield h4 [] [ str (model.SourceWebsite)]
           yield 
             div [ ClassName "article" ] [
               div [ ClassName "article-highlights" ] 
@@ -587,7 +590,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | FetchArticle -> 
         model |> isCompleted, 
         fetchArticleCmd 
-            { Article.Title = model.Heading; ID = model.Link; Text = None } model.User,
+            { Article.Title = model.Heading; ID = model.Link; Text = None; SourceWebsite = model.SourceWebsite } model.User,
             NoOp
          
     | View -> 
