@@ -11,6 +11,7 @@ Microsoft.AspNetCore
 Microsoft.AspNetCore.WebSockets
 Microsoft.AspNetCore.WebSockets.Server
 System.Data.SqlClient
+FSharp.Data
 
 Fable.Core
 Fable.React

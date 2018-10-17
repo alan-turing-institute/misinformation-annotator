@@ -76,14 +76,15 @@ let loadArticleAnnotationsFromDB articleId userName : ArticleAnnotations option 
 let IsValidUser userName password = 
     if ((userName = "test" && password = "test") ||
         (userName = "test2" && password = "test2")) then
-        Some ({
+        Some (
+          {
             UserName = userName
             Proficiency = UserProficiency.Training
             Token =
                 ServerCode.JsonWebToken.encode (
                     { UserName = userName } : ServerTypes.UserRights
                 )
-        } : Domain.UserData)
+          } : Domain.UserData)
     else 
         None    
     
