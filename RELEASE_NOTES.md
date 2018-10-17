@@ -1,3 +1,6 @@
+### 0.1.8 - 2018-10-17
+* Preliminary database integration
+
 ### 0.1.7.3 - 2018-10-07
 * UI fixes
     * Go to next article directly
