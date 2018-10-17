@@ -19,4 +19,5 @@ module APIUrls =
   let Article = "/api/article/"
   [<Literal>]
   let Answers = "/api/answers/"
-  
+  [<Literal>]
+  let ArticleError = "/api/article_err/"

@@ -36,5 +36,6 @@ let webApp databaseType root =
             //route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.postAnnotations db.SaveAnnotations))
             route APIUrls.Article (Auth.requiresJwtTokenForAPI (Article.getArticle db.LoadArticle db.LoadArticleAnnotations))
             route APIUrls.Answers (Article.postAnswers db.SaveAnnotations db.DeleteAnnotations)
+            route APIUrls.ArticleError (Article.flagIncorrectlyParsed db.FlagArticle)
         ]
     ]

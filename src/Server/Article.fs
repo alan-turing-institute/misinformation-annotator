@@ -67,3 +67,11 @@ let postAnswers (saveToDB : ArticleAnnotations -> Task<unit>)  (deleteFromDB : A
                 let! result = deleteFromDB annaction.Annotations
                 return! ctx.WriteJsonAsync({ Success = result })
         }
+
+let flagIncorrectlyParsed (flagInDB : FlaggedArticle -> Task<bool>) : HttpHandler =
+    fun (next: HttpFunc) (ctx: HttpContext) ->
+        task {
+            let! flagged = ctx.BindJsonAsync<Domain.FlaggedArticle>()
+            let! result = flagInDB flagged
+            return! ctx.WriteJsonAsync({ Success = result })
+        }        

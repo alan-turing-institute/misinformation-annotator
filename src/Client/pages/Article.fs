@@ -35,6 +35,7 @@ type Model = {
     ShowDeleteSelection : (SourceId * HighlightType * Selection) option
     Completed : bool
     Submitted : bool option
+    FlaggedParsingErrors : bool
 }
 
 type Msg = 
@@ -61,6 +62,9 @@ type Msg =
     | HighlightReason of SourceId
     | GoToNextArticle
     | SetNote of (int * string)
+    | IncorrectlyParsed 
+    | TagSuccess of AnswersResponse
+    | TagError of exn
 
 type ExternalMsg = 
     | NoOp    
@@ -123,6 +127,18 @@ let deleteAnnotations (model: Model) =
 let deleteAnnotationsCmd model =
     Cmd.ofPromise deleteAnnotations model DeletedAnnotations SubmitError
 
+let flagIncorrectlyParsed (model: Model) =
+    promise {
+        let url = ServerUrls.APIUrls.ArticleError
+        let! response = 
+            Fetch.postRecord url { ArticleID = model.Link; User = model.User } []
+        let! resp = response.json<AnswersResponse>()
+        return resp }
+
+let flagArticleCmd model =
+    Cmd.ofPromise flagIncorrectlyParsed model TagSuccess TagError
+
+
 let init (user:UserData) (article: Article)  = 
     { 
       User = user
@@ -137,6 +153,7 @@ let init (user:UserData) (article: Article)  =
       Submitted = None
       StartedEditing = DateTime.Now
       Completed = false
+      FlaggedParsingErrors = false
       }, 
     fetchArticleCmd article user
 
@@ -488,6 +505,17 @@ let view (model:Model) (dispatch: Msg -> unit) =
                 ]
             ]
           yield hr []
+          yield br [] 
+          yield br []
+          yield 
+            button [ (if not model.FlaggedParsingErrors then 
+                        OnClick (fun _ -> dispatch IncorrectlyParsed) 
+                      else OnClick (fun _ -> ()))
+                     ClassName "btn btn-link .small" ] 
+                   [ (if not model.FlaggedParsingErrors then
+                        str "Garbled text? Flag article as incorrectly parsed."
+                      else 
+                        str "Article flagged as incorrectly parsed.") ]
          ]
 
        yield div [ ClassName "container col-md-6 right" ] [
@@ -806,3 +834,14 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         sourceInfo.[sourceIdx] <- 
             { sourceInfo.[sourceIdx] with UserNotes = (if text <> "" then Some text else None) }
         { model with SourceInfo = sourceInfo }, Cmd.none, NoOp
+
+    | IncorrectlyParsed ->
+        model, flagArticleCmd model, NoOp
+
+    | TagSuccess result ->
+        if result.Success then 
+            { model with FlaggedParsingErrors = true }, Cmd.none, NoOp
+        else 
+            model, Cmd.none, NoOp
+
+    | TagError _ -> { model with FlaggedParsingErrors = false }, Cmd.none, NoOp

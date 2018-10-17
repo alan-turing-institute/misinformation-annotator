@@ -326,3 +326,17 @@ let IsValidUser ( connectionString : AzureConnection) userName password = task {
         }    
         return Some user
 }
+
+let FlagArticle ( connectionString : AzureConnection) (flaggedArticle: Domain.FlaggedArticle) = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
+    let container = blobClient.GetContainerReference("log")  
+
+    let blob = container.GetBlockBlobReference ("flagged_articles.csv")
+    let! text = task {    
+        return! blob.DownloadTextAsync()
+    }
+    let text' = text + sprintf "%s,%s" flaggedArticle.User.UserName flaggedArticle.ArticleID
+    let! result = blob.UploadTextAsync(text')
+    let! exists = blob.ExistsAsync()
+    return exists
+}

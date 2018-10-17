@@ -105,6 +105,12 @@ type ArticleAnnotationAction =
 type AnswersResponse = 
   { Success : bool }
 
+type FlaggedArticle = 
+    { 
+        ArticleID : string
+        User: UserData
+    }
+
 //===========================================================
 
 type OpenGraphNS = {
