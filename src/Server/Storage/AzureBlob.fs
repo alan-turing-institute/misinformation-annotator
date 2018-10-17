@@ -147,7 +147,7 @@ let loadArticlesFromFile connectionString = task {
 let loadArticlesFromSQLDatabase connectionString = task {
     let! results = task {
         // TODO: Find articles that should be displayed to the specific user
-        let articles = selectNumArticlesPerSite 10 connectionString.SqlConnection
+        let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
         return articles
     }
     
