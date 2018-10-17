@@ -11,23 +11,58 @@ open Newtonsoft.Json
 open Microsoft.Extensions.Logging
 open Fable.AST.Fable
 open System.Text.RegularExpressions
+open System.Data.SqlClient
 
-type AzureConnection =
-    | AzureConnection of string
 
+type AzureConnection = {
+    BlobConnection : string
+    SqlConnection : string 
+}
+
+type DBArticle = {
+    Id: int
+    SiteName: string
+    CrawlDate: System.DateTimeOffset
+    ArticleUrl: string
+    Content: string
+    Metadata: string
+}
+
+let selectNumArticlesPerSite numArticlesPerSite sqlConn = 
+  use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
+  conn.Open()
+  let command = sprintf "WITH sorted_articles_by_site AS (
+    SELECT *, ROW_NUMBER() 
+    over (
+        PARTITION BY [site_name] 
+        order by [id]
+    ) AS row_num 
+    FROM [articles]
+)
+SELECT * FROM sorted_articles_by_site WHERE row_num <= %i" numArticlesPerSite
+
+  use cmd = new SqlCommand(command, conn)
+  let rdr = cmd.ExecuteReader()
+  [| while rdr.Read() do 
+        yield { Id = rdr.GetInt32(0)
+                SiteName = rdr.GetString(1)
+                CrawlDate = rdr.GetDateTimeOffset(2)
+                ArticleUrl = rdr.GetString(3)
+                Content = rdr.GetString(4)
+                Metadata = rdr.GetString(5)} |]
 
 let getJSONFileName userName (articleId: string) = 
     let id = articleId.Replace("/", "-")
     sprintf "%s/%s.json" userName id
 
-let getAnnotationsBlob (AzureConnection connectionString) userName articleId = task {
-    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+let getAnnotationsBlob (connectionString : AzureConnection) userName articleId = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
     let container = blobClient.GetContainerReference("sample-crawl")
     let annotationBlob = container.GetBlockBlobReference ("annotations/" + (getJSONFileName userName articleId))
     return annotationBlob }
 
-let getExistingAnnotationBlob (AzureConnection connectionString) userName articleId = task {
-    let! annotationBlob = getAnnotationsBlob (AzureConnection connectionString) userName articleId
+let getExistingAnnotationBlob ( connectionString : AzureConnection) userName articleId = task {
+    let! annotationBlob = getAnnotationsBlob (connectionString) userName articleId
     let! exists = annotationBlob.ExistsAsync()
     if exists then 
         return Some annotationBlob
@@ -35,8 +70,8 @@ let getExistingAnnotationBlob (AzureConnection connectionString) userName articl
         return None
 }
 
-let checkAnnotationsExist (AzureConnection connectionString) userName (articles : ArticleDBData array) = task {
-    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+let checkAnnotationsExist (connectionString : AzureConnection) userName (articles : ArticleDBData array) = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
     let container = blobClient.GetContainerReference("sample-crawl")
 
     let annotations = 
@@ -48,8 +83,8 @@ let checkAnnotationsExist (AzureConnection connectionString) userName (articles 
     return annotations
 }
     
-let getArticlesBlob (AzureConnection connectionString) = task {
-    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+let getArticlesBlob (connectionString : AzureConnection) = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
     let container = blobClient.GetContainerReference("sample-crawl")
     let articleBlob = container.GetBlockBlobReference "articles/misinformation.txt"
     return articleBlob }
@@ -77,10 +112,36 @@ let loadArticlesFromFile connectionString = task {
             )
     return articles        
 }
+
+let loadArticlesFromSQLDatabase connectionString = task {
+    let! results = task {
+        // TODO: Find articles that should be displayed to the specific user
+        let articles = selectNumArticlesPerSite 10 connectionString.SqlConnection
+        return articles
+    }
+    
+    System.IO.File.WriteAllText("/Users/egabasova/Projects/misinformation-annotator/metadata.json", results.[0].Metadata)
+    let articles = 
+        results
+        |> Array.map (fun articleData ->
+            {
+                site_name = articleData.SiteName
+                article_url = articleData.ArticleUrl
+                microformat_metadata = articleData.Metadata |> JsonConvert.DeserializeObject<MicroformatMetadata> 
+                content = [|articleData.Content|]
+            })
+    return articles        
+}
+
+
+
 /// Load list of articles from the database
 let getArticlesFromDB connectionString userName = task {
-    let! articles = loadArticlesFromFile connectionString 
-        
+    //let! articles = loadArticlesFromFile connectionString
+    printfn "Trying to load articles from database..."
+    let! articles = loadArticlesFromSQLDatabase connectionString 
+    printfn "Finished!"
+
     let! annotated = checkAnnotationsExist connectionString userName articles
 
     return
@@ -146,8 +207,8 @@ let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
 
 
 module private StateManagement =
-    let getStateBlob (AzureConnection connectionString) name = task {
-        let client = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+    let getStateBlob ( connectionString: AzureConnection) name = task {
+        let client = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
         let state = client.GetContainerReference "state"
         let! _ = state.CreateIfNotExistsAsync()
         return state.GetBlockBlobReference name }
@@ -165,8 +226,8 @@ let getLastResetTime connectionString = task {
 }
 
 
-let IsValidUser (AzureConnection connectionString) userName password = task {
-    let blobClient = (CloudStorageAccount.Parse connectionString).CreateCloudBlobClient()
+let IsValidUser ( connectionString : AzureConnection) userName password = task {
+    let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
     let container = blobClient.GetContainerReference("sample-crawl")
 
     let! text = task {

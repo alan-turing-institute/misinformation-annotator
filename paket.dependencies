@@ -1,25 +1,26 @@
 source https://nuget.org/api/v2
 storage:none
 
-nuget FSharp.Core redirects: force
-nuget Fable.JsonConverter
-nuget Giraffe
-nuget Giraffe.TokenRouter
+nuget FSharp.Core 4.5 redirects: force
+nuget Fable.JsonConverter 1.0.8
+nuget Giraffe 1.1
+nuget Giraffe.TokenRouter 0.1.0-beta-110
 nuget Microsoft.AspNetCore.StaticFiles
 nuget Microsoft.AspNetCore
 nuget Microsoft.AspNetCore.WebSockets
 nuget Microsoft.AspNetCore.WebSockets.Server
+nuget System.Data.SqlClient
 nuget System.Net.NetworkInformation
-nuget jose-jwt
+nuget jose-jwt 2.4
 
-nuget Fable.Core
-nuget Fable.React
-nuget Fable.Elmish
+nuget Fable.Core 1.3.17
+nuget Fable.React 3.1.3
+nuget Fable.Elmish 1.0.3
 nuget Fable.Elmish.React
 nuget Fable.Elmish.Browser
 nuget Fable.Elmish.Debugger
 nuget Fable.Elmish.HMR
-nuget Microsoft.Azure.WebJobs prerelease
+nuget Microsoft.Azure.WebJobs 3.0.0-beta5
 nuget Microsoft.Azure.WebJobs.Extensions prerelease
 
 clitool dotnet-fable

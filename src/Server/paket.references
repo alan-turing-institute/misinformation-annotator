@@ -10,6 +10,7 @@ Microsoft.AspNetCore.StaticFiles
 Microsoft.AspNetCore
 Microsoft.AspNetCore.WebSockets
 Microsoft.AspNetCore.WebSockets.Server
+System.Data.SqlClient
 
 Fable.Core
 Fable.React

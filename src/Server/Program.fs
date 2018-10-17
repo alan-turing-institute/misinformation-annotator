@@ -73,15 +73,17 @@ let main args =
             |> Path.GetFullPath
       
         let storageEnvVar = "CUSTOMCONNSTR_BLOBSTORAGE"
-        let connStr = GetEnvVar storageEnvVar
+        let connStr1 = GetEnvVar storageEnvVar
+        let sqlserverEnvVar = "SQLAZURECONNSTR_SQLDATABASE"
+        let connStr2 = GetEnvVar sqlserverEnvVar
+        
         let database = 
-            connStr
-            |> Option.map(fun conn ->
-                conn
-                |> ServerCode.Storage.AzureBlob.AzureConnection
-                |> Database.DatabaseType.AzureStorage)
-            |> Option.defaultValue Database.DatabaseType.FileSystem
-
+            match connStr1, connStr2 with
+            | Some cs1, Some cs2 ->
+                {ServerCode.Storage.AzureBlob.BlobConnection = cs1; 
+                 ServerCode.Storage.AzureBlob.SqlConnection = cs2}
+                |> Database.DatabaseType.AzureStorage
+            | _ -> Database.DatabaseType.FileSystem
 
         let port = getPortsOrDefault 8085us
 
