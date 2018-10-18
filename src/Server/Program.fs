@@ -80,8 +80,8 @@ let main args =
         let database = 
             match connStr1, connStr2 with
             | Some cs1, Some cs2 ->
-                {ServerCode.Storage.AzureBlob.BlobConnection = cs1; 
-                 ServerCode.Storage.AzureBlob.SqlConnection = cs2}
+                {ServerCode.Storage.AzureStorage.BlobConnection = cs1; 
+                 ServerCode.Storage.AzureStorage.SqlConnection = cs2}
                 |> Database.DatabaseType.AzureStorage
             | _ -> Database.DatabaseType.FileSystem
 

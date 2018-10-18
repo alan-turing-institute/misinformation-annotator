@@ -1,4 +1,4 @@
-module ServerCode.Storage.AzureBlob
+module ServerCode.Storage.AzureStorage
 
 open Microsoft.WindowsAzure.Storage
 open Microsoft.WindowsAzure.Storage.Blob

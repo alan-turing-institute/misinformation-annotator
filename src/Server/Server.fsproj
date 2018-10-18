@@ -16,7 +16,7 @@
     <Compile Include="Annotations.fs" />
     <Compile Include="Storage/Defaults.fs" />
     <Compile Include="Storage/FileSystem.fs" />
-    <Compile Include="Storage/AzureBlob.fs" />
+    <Compile Include="Storage/AzureStorage.fs" />
     <Compile Include="Storage/WebJobs.fs" />
     <Compile Include="Database.fs" />
     <Compile Include="Auth.fs" />

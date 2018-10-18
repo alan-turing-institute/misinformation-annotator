@@ -2,7 +2,7 @@
 module ServerCode.Database
 
 open Microsoft.Azure.WebJobs
-open ServerCode.Storage.AzureBlob
+open ServerCode.Storage.AzureStorage
 open ServerCode
 open ServerCode.Domain
 open System.Threading.Tasks
@@ -29,16 +29,16 @@ let getDatabase databaseType startupTime =
     | DatabaseType.AzureStorage connection ->
         //Storage.WebJobs.startWebJobs connection
         { new IDatabaseFunctions with
-            member __.LoadArticles key = Storage.AzureBlob.getArticlesFromDB connection key
-            member __.LoadArticle key = Storage.AzureBlob.loadArticleFromDB connection key
-            member __.SaveAnnotations annotations = Storage.AzureBlob.saveAnnotationsToDB connection annotations
-            member __.DeleteAnnotations annotations = Storage.AzureBlob.deleteAnnotationsFromDB connection annotations 
+            member __.LoadArticles key = Storage.AzureStorage.getArticlesFromDB connection key
+            member __.LoadArticle key = Storage.AzureStorage.loadArticleFromDB connection key
+            member __.SaveAnnotations annotations = Storage.AzureStorage.saveAnnotationsToDB connection annotations
+            member __.DeleteAnnotations annotations = Storage.AzureStorage.deleteAnnotationsFromDB connection annotations 
             member __.GetLastResetTime () = task {
-                let! resetTime = Storage.AzureBlob.getLastResetTime connection
+                let! resetTime = Storage.AzureStorage.getLastResetTime connection
                 return resetTime |> Option.defaultValue startupTime } 
-            member __.LoadArticleAnnotations articleId userName = Storage.AzureBlob.loadArticleAnnotationsFromDB connection articleId userName
-            member __.IsValidUser userName password = Storage.AzureBlob.IsValidUser connection userName password
-            member __.FlagArticle flaggedArticle = Storage.AzureBlob.FlagArticle connection flaggedArticle 
+            member __.LoadArticleAnnotations articleId userName = Storage.AzureStorage.loadArticleAnnotationsFromDB connection articleId userName
+            member __.IsValidUser userName password = Storage.AzureStorage.IsValidUser connection userName password
+            member __.FlagArticle flaggedArticle = Storage.AzureStorage.FlagArticle connection flaggedArticle 
         }
 
     | DatabaseType.FileSystem ->
