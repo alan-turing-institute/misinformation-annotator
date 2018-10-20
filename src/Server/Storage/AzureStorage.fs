@@ -4,6 +4,7 @@ open Microsoft.WindowsAzure.Storage
 open Microsoft.WindowsAzure.Storage.Blob
 open ServerCode
 open ServerCode.Domain
+open ServerCode.FableJson
 open System
 open System.Threading.Tasks
 open FSharp.Control.Tasks.ContextInsensitive
@@ -248,8 +249,30 @@ let loadArticleFromDB connectionString link = task {
 
 
 let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = task {
-    let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
-    do! annotationBlob.UploadTextAsync(FableJson.toJson annotations)
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+
+// INSERT INTO [annotations](article_url, annotation, user_id, user_proficiency,created_date, updated_date, num_sources) 
+//         VALUES ('http://addictinginfo.com/2018/09/24/yale-alumnae-stand-up-to-kavanaugh-support-his-latest-accuser-by-the-hundreds  /',
+//                 '{}','test','Training','2018-10-17T10:59:31.8990000Z','2018-10-17T10:59:31.8990000Z',2)
+
+    let annotationText = FableJson.toJson annotations
+    let command = 
+      sprintf "
+        INSERT INTO [annotations](article_url, annotation, user_id, user_proficiency,created_date, updated_date, num_sources) 
+        VALUES ('%s','%s','%s','%s','%s','%s', %d)"  
+        annotations.ArticleID 
+        (toJson annotations.Annotations) 
+        annotations.User.UserName 
+        (string annotations.User.Proficiency)
+        (string annotations.CreatedUTC) 
+        (string System.DateTime.UtcNow) 
+        annotations.Annotations.Length
+    let cmd = SqlCommand(command, conn)
+    let result = cmd.ExecuteNonQuery()
+
+//    let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
+//    do! annotationBlob.UploadTextAsync(FableJson.toJson annotations)
     return ()
 }
 
