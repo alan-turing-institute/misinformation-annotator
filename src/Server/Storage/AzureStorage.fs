@@ -262,11 +262,11 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
         INSERT INTO [annotations](article_url, annotation, user_id, user_proficiency,created_date, updated_date, num_sources) 
         VALUES ('%s','%s','%s','%s','%s','%s', %d)"  
         annotations.ArticleID 
-        (toJson annotations.Annotations) 
+        (toJson annotations) 
         annotations.User.UserName 
         (string annotations.User.Proficiency)
-        (string annotations.CreatedUTC) 
-        (string System.DateTime.UtcNow) 
+        (annotations.CreatedUTC.Value |> string) 
+        (System.DateTime.UtcNow |> string )
         annotations.Annotations.Length
     let cmd = SqlCommand(command, conn)
     let result = cmd.ExecuteNonQuery()
