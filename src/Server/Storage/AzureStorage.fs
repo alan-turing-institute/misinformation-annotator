@@ -108,16 +108,33 @@ let getExistingAnnotationBlob ( connectionString : AzureConnection) userName art
 }
 
 let checkAnnotationsExist (connectionString : AzureConnection) userName articles  = task {
-    let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
-    let container = blobClient.GetContainerReference("sample-crawl")
+    //let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
+    //let container = blobClient.GetContainerReference("sample-crawl")
 
-    let annotations = 
-        articles 
-        |> Array.map (fun article ->
-            let annotationBlob = container.GetBlockBlobReference ("annotations/" + (getJSONFileName userName article.ArticleUrl))
-            article, annotationBlob.ExistsAsync().Result)
+    // let annotations = 
+    //     articles 
+    //     |> Array.map (fun article ->
+    //         let annotationBlob = container.GetBlockBlobReference ("annotations/" + (getJSONFileName userName article.ArticleUrl))
+    //         article, annotationBlob.ExistsAsync().Result)
 
-    return annotations
+    // return annotations
+
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = sprintf "SELECT * FROM [annotations] WHERE user_id='%s' AND num_sources IS NOT NULL;" userName
+    use cmd = new SqlCommand(command, conn)
+    let rdr = cmd.ExecuteReader()
+    let result = 
+        [| while rdr.Read() do 
+            let article_url = rdr.GetString(1)
+            yield article_url |]
+        |> set
+    let annotations =
+        articles
+        |> Array.map (fun article ->  
+            article, 
+            if result.Contains(article.ArticleUrl) then true else false)
+    return annotations        
 }
     
 let getArticlesBlob (connectionString : AzureConnection) = task {
@@ -252,15 +269,14 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
-// INSERT INTO [annotations](article_url, annotation, user_id, user_proficiency,created_date, updated_date, num_sources) 
-//         VALUES ('http://addictinginfo.com/2018/09/24/yale-alumnae-stand-up-to-kavanaugh-support-his-latest-accuser-by-the-hundreds  /',
-//                 '{}','test','Training','2018-10-17T10:59:31.8990000Z','2018-10-17T10:59:31.8990000Z',2)
-
     let annotationText = FableJson.toJson annotations
+
+    // TODO: Check if there already is an entry with the same user-article pair
+    // and if so, then overwrite that
     let command = 
       sprintf "
         INSERT INTO [annotations](article_url, annotation, user_id, user_proficiency,created_date, updated_date, num_sources) 
-        VALUES ('%s','%s','%s','%s','%s','%s', %d)"  
+        VALUES ('%s','%s','%s','%s','%s','%s', %d);"  
         annotations.ArticleID 
         (toJson annotations) 
         annotations.User.UserName 
@@ -269,7 +285,7 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
         (System.DateTime.UtcNow |> string )
         annotations.Annotations.Length
     let cmd = SqlCommand(command, conn)
-    let result = cmd.ExecuteNonQuery()
+    let! result = cmd.ExecuteNonQueryAsync()
 
 //    let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
 //    do! annotationBlob.UploadTextAsync(FableJson.toJson annotations)
@@ -277,11 +293,24 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
 }
 
 let deleteAnnotationsFromDB connectionString (annotations: ArticleAnnotations) = task {
-    let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
-    return! annotationBlob.DeleteIfExistsAsync()
+    // let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
+    // return! annotationBlob.DeleteIfExistsAsync()
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+
+    let user = annotations.User.UserName
+    let id = annotations.ArticleID
+    let command = 
+      sprintf "
+        DELETE FROM [annotations] WHERE article_url = '%s' AND user_id = '%s';"  
+        annotations.ArticleID annotations.User.UserName 
+    let cmd = SqlCommand(command, conn)
+    let! result = cmd.ExecuteNonQueryAsync()
+    if result = 1 then return true else return false
 }
 
 let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
+    (*
     let! annotationBlob = getExistingAnnotationBlob connectionString userName articleId
     match annotationBlob with
     | Some blob ->
@@ -292,6 +321,25 @@ let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
         return Some ann
     | None -> 
         return None
+    *)
+
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+
+    let command = sprintf "SELECT * FROM [annotations] WHERE [article_url]='%s' AND user_id='%s';" articleId userName
+
+    use cmd = new SqlCommand(command, conn)
+    let rdr = cmd.ExecuteReader()
+    let result = 
+        [| while rdr.Read() do 
+            let text = rdr.GetString(2)
+            let ann = text |> FableJson.ofJson<ArticleAnnotations>
+            yield Some ann |]
+    return (
+        match result.Length with
+        | 0 -> None
+        | 1 -> Array.exactlyOne result 
+        | _ -> result.[0])
 }
 
 
