@@ -35,23 +35,23 @@ type ExternalMsg =
     | NoOp
     | CacheAllArticles of ArticleList
 
-/// Get the wish list from the server, used to populate the model
-let getAnnotations (user: UserData) =
+let loadAnnotations (user: UserData) =
     promise {
         let url = ServerUrls.APIUrls.Annotations
         let body = toJson user
         let props =
-            [ Fetch.requestHeaders [
-                HttpRequestHeaders.Authorization ("Bearer " + user.Token) ]
+            [ RequestProperties.Method HttpMethod.POST
+              Fetch.requestHeaders [
+                HttpRequestHeaders.Authorization ("Bearer " + user.Token)
+                HttpRequestHeaders.ContentType "application/json" ]
               RequestProperties.Body !^body ]
 
         return! Fetch.fetchAs<ArticleList> url props
     }
 
-
 let loadAnnotationsCmd user =
     Browser.console.log("Requesting articles")
-    Cmd.ofPromise getAnnotations user FetchedAnnotations FetchError
+    Cmd.ofPromise loadAnnotations user FetchedAnnotations FetchError
 
 let getResetTime token =
     promise {
@@ -66,24 +66,6 @@ let getResetTime token =
 
 let loadResetTimeCmd token =
     Cmd.ofPromise getResetTime token FetchedResetTime FetchError
-
-
-let postAnnotations (token,annotations) =
-    promise {
-        let url = ServerUrls.APIUrls.Annotations
-        let body = toJson annotations
-        let props =
-            [ RequestProperties.Method HttpMethod.POST
-              Fetch.requestHeaders [
-                HttpRequestHeaders.Authorization ("Bearer " + token)
-                HttpRequestHeaders.ContentType "application/json" ]
-              RequestProperties.Body !^body ]
-
-        return! Fetch.fetchAs<ArticleList> url props
-    }
-
-let postAnnotationsCmd (token,annotations) =
-    Cmd.ofPromise postAnnotations (token,annotations) FetchedAnnotations FetchError
 
 
 let init (user:UserData, articleList : ArticleList option) =

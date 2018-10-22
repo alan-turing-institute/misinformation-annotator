@@ -24,16 +24,12 @@ let webApp databaseType root =
     router notfound [
         GET [
             route PageUrls.Home Pages.home
-
-            route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.getAnnotations db.LoadArticles))
             route APIUrls.ResetTime (Annotations.getResetTime db.GetLastResetTime)
-
-            //route APIUrls.Article (Article.getArticle db.LoadArticle)
         ]
 
         POST [
             route APIUrls.Login (Auth.login db.IsValidUser)
-            //route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.postAnnotations db.SaveAnnotations))
+            route APIUrls.Annotations (Auth.requiresJwtTokenForAPI (Annotations.getAnnotations db.LoadArticles))
             route APIUrls.Article (Auth.requiresJwtTokenForAPI (Article.getArticle db.LoadArticle db.LoadArticleAnnotations))
             route APIUrls.Answers (Article.postAnswers db.SaveAnnotations db.DeleteAnnotations)
             route APIUrls.ArticleError (Article.flagIncorrectlyParsed db.FlagArticle)

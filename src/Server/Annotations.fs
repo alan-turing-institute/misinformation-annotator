@@ -7,11 +7,11 @@ open Giraffe
 open ServerCode.Domain
 open ServerTypes
 
-/// Handle the GET on /api/annotations
+/// Handle the POST on /api/annotations
 let getAnnotations (getArticleFromDB : UserData -> Task<ArticleList>) (token : UserRights) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            printfn "Trying to GET annotations"
+            printfn "Trying to get annotations"
             let! userData = ctx.BindJsonAsync<Domain.UserData>()
             let! annotations = getArticleFromDB userData
             return! ctx.WriteJsonAsync annotations
