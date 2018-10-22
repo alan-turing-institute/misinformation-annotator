@@ -8,11 +8,12 @@ open ServerCode.Domain
 open ServerTypes
 
 /// Handle the GET on /api/annotations
-let getAnnotations (getArticleFromDB : string -> Task<ArticleList>) (token : UserRights) : HttpHandler =
+let getAnnotations (getArticleFromDB : UserData -> Task<ArticleList>) (token : UserRights) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
             printfn "Trying to GET annotations"
-            let! annotations = getArticleFromDB token.UserName
+            let! userData = ctx.BindJsonAsync<Domain.UserData>()
+            let! annotations = getArticleFromDB userData
             return! ctx.WriteJsonAsync annotations
         }
 

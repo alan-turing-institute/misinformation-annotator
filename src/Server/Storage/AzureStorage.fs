@@ -169,6 +169,7 @@ let loadArticlesFromFile connectionString = task {
 }
 
 let loadArticlesFromSQLDatabase connectionString = task {
+
     let! results = task {
         // TODO: Find articles that should be displayed to the specific user
         let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
@@ -190,13 +191,15 @@ let loadArticlesFromSQLDatabase connectionString = task {
 
 
 /// Load list of articles from the database
-let getArticlesFromDB connectionString userName = task {
+let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
+
+
     //let! articles = loadArticlesFromFile connectionString
     let! articles = loadArticlesFromSQLDatabase connectionString 
-    let! annotated = checkAnnotationsExist connectionString userName articles
+    let! annotated = checkAnnotationsExist connectionString userData.UserName articles
 
     let result =         
-        { UserName = userName
+        { UserName = userData.UserName
           Articles =
             annotated
             |> Array.mapi (fun i (article, ann) ->

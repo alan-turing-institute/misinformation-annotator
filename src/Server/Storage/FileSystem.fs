@@ -30,7 +30,8 @@ let deleteAnnotationsFromDB (annotations: ArticleAnnotations) =
     File.Delete(fi.FullName)
     not (File.Exists(fi.FullName))
 
-let getArticlesFromDB userName =
+let getArticlesFromDB (userData : Domain.UserData) =
+    let userName = userData.UserName
     let articles = getArticles userName
     let annotations = getAnnotations userName
 

@@ -36,20 +36,22 @@ type ExternalMsg =
     | CacheAllArticles of ArticleList
 
 /// Get the wish list from the server, used to populate the model
-let getAnnotations token =
+let getAnnotations (user: UserData) =
     promise {
         let url = ServerUrls.APIUrls.Annotations
+        let body = toJson user
         let props =
             [ Fetch.requestHeaders [
-                HttpRequestHeaders.Authorization ("Bearer " + token) ]]
+                HttpRequestHeaders.Authorization ("Bearer " + user.Token) ]
+              RequestProperties.Body !^body ]
 
         return! Fetch.fetchAs<ArticleList> url props
     }
 
 
-let loadAnnotationsCmd token =
+let loadAnnotationsCmd user =
     Browser.console.log("Requesting articles")
-    Cmd.ofPromise getAnnotations token FetchedAnnotations FetchError
+    Cmd.ofPromise getAnnotations user FetchedAnnotations FetchError
 
 let getResetTime token =
     promise {
@@ -97,7 +99,7 @@ let init (user:UserData, articleList : ArticleList option) =
       SelectedArticle = None
       },
       match articleList with 
-      | None -> loadAnnotationsCmd user.Token
+      | None -> loadAnnotationsCmd user
       | Some _ -> Cmd.none
 
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
