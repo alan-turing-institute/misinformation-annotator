@@ -215,30 +215,6 @@ let getArticlesFromDB connectionString userName = task {
     return result
 }
 
-
-
-// let loadArticleFromDB connectionString link = task {
-//     let! articles = loadArticlesFromFile connectionString 
-
-//     let selectedArticle = 
-//         articles
-//         |> Array.find (fun a -> a.article_url = link)
-    
-//     // strip content off html tags
-//     let text = 
-//         selectedArticle.content
-//         |> Array.collect (fun textBlock ->
-//             textBlock.Split("<br> <br>"))
-//         |> Array.map (fun paragraph ->
-//             Regex.Replace(paragraph, "<.*?>", ""))
-//         |> Array.filter (fun paragraph ->
-//             paragraph.Trim() <> "")
-
-//    return
-//         { Title = getTitle selectedArticle; 
-//           ID = selectedArticle.article_url
-//           Text = Some text }
-// }
 let loadArticleFromDB connectionString link = task {
     let article = selectArticle link connectionString.SqlConnection
 
@@ -288,16 +264,11 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
     cmd.Parameters.AddWithValue("@NumSources", annotations.Annotations.Length)  |> ignore
 
     let result = cmd.ExecuteNonQuery()
-    printfn "DB insert: %A" result
-//    let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
-//    do! annotationBlob.UploadTextAsync(FableJson.toJson annotations)
     conn.Close()
     return ()
 }
 
 let deleteAnnotationsFromDB connectionString (annotations: ArticleAnnotations) = task {
-    // let! annotationBlob = getAnnotationsBlob connectionString annotations.User.UserName annotations.ArticleID
-    // return! annotationBlob.DeleteIfExistsAsync()
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
@@ -314,19 +285,6 @@ let deleteAnnotationsFromDB connectionString (annotations: ArticleAnnotations) =
 }
 
 let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
-    (*
-    let! annotationBlob = getExistingAnnotationBlob connectionString userName articleId
-    match annotationBlob with
-    | Some blob ->
-        let! text = blob.DownloadTextAsync()
-        let ann = 
-            text
-            |> FableJson.ofJson<ArticleAnnotations>
-        return Some ann
-    | None -> 
-        return None
-    *)
-
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
