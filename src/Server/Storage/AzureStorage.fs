@@ -75,7 +75,7 @@ SELECT * FROM sorted_articles_by_site WHERE row_num <= %i" numArticlesPerSite
   conn.Close()
   result  
 
-let selectArticle articleId sqlConn =
+let selectArticle articleId sqlConn includeContent =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
   conn.Open()
 
@@ -90,7 +90,9 @@ let selectArticle articleId sqlConn =
                     SiteName = rdr.GetString(1)
                     CrawlDate = rdr.GetDateTimeOffset(2)
                     ArticleUrl = rdr.GetString(3)
-                    Content = Some (rdr.GetString(4) |> toUnicode) 
+                    Content = 
+                       (if includeContent then Some (rdr.GetString(4) |> toUnicode)
+                        else None )
                     Metadata = rdr.GetString(5) |> toUnicode } |]    
       |> Array.exactlyOne
   conn.Close()  
@@ -168,24 +170,64 @@ let loadArticlesFromFile connectionString = task {
     return articles        
 }
 
-let loadArticlesFromSQLDatabase connectionString = task {
+let selectUnfinishedArticles connectionString userName =
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "SELECT article_url FROM [annotations] WHERE user_id = @UserId AND annotation IS NULL;"
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
-    let! results = task {
-        // TODO: Find articles that should be displayed to the specific user
-        let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
-        return articles
-    }
-    
-    // let articles = 
-    //     results
-    //     |> Array.map (fun articleData ->
-    //         {
-    //             site_name = articleData.SiteName
-    //             article_url = articleData.ArticleUrl
-    //             microformat_metadata = articleData.Metadata |> JsonConvert.DeserializeObject<MicroformatMetadata> 
-    //             content = [|articleData.Content|]
-    //         })
-    return results        
+    let rdr = cmd.ExecuteReader()
+    let result = 
+        [| while rdr.Read() do 
+            let article_url = rdr.GetString(0)
+            yield article_url |]
+        |> Array.map (fun articleId -> selectArticle articleId connectionString.SqlConnection false )
+    conn.Close()
+    result
+
+let selectAddAnnotationArticles connectionString userName =
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "SELECT article_url FROM [annotations] GROUP BY article_url HAVING (COUNT(article_url) = 1)"
+    use cmd = new SqlCommand(command, conn)
+
+    let rdr = cmd.ExecuteReader()
+    let result = 
+        [| while rdr.Read() do 
+            let article_url = rdr.GetString(0)
+            yield article_url |]
+        |> Array.map (fun articleId -> selectArticle articleId connectionString.SqlConnection false )
+        // filter out the unfinished articles, assigned but unfinished
+        //|> Array.filter (fun article -> article.)
+    conn.Close()
+    result
+
+let loadArticlesFromSQLDatabase connectionString userData = task {
+    // TODO: Find articles that should be displayed to the specific user
+
+    match userData.Proficiency with
+    | Training | User | Expert ->
+        let! results = task {
+            let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
+            return articles
+        }
+        return results
+        
+    // | User | Expert ->
+    //     // 1. Select articles assigned to user with unfinished annotations
+    //     let articlesUnfinished =
+    //         selectUnfinishedArticles connectionString userData.UserName
+
+    //     // 2. Select articles that have annotation by only one user
+    //     let articlesUncomplete =
+    //         selectAddAnnotationArticles connectionString userData.UserName
+
+    //     // 3. Select the remaining articles from the current batch
+
+
+    //     // -- randomize the order of articles as they are shown to the user
+    //     return [||]
 }
 
 
@@ -193,9 +235,7 @@ let loadArticlesFromSQLDatabase connectionString = task {
 /// Load list of articles from the database
 let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
 
-
-    //let! articles = loadArticlesFromFile connectionString
-    let! articles = loadArticlesFromSQLDatabase connectionString 
+    let! articles = loadArticlesFromSQLDatabase connectionString userData
     let! annotated = checkAnnotationsExist connectionString userData.UserName articles
 
     let result =         
@@ -219,7 +259,7 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
 }
 
 let loadArticleFromDB connectionString link = task {
-    let article = selectArticle link connectionString.SqlConnection
+    let article = selectArticle link connectionString.SqlConnection true
 
     // strip content off html tags
     let text = 
