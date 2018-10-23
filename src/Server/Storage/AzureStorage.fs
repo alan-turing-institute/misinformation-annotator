@@ -17,8 +17,6 @@ open FSharp.Data
 open System.Text.RegularExpressions
 open System.Data
 
-//type Metadata = JsonProvider<"""{"microdata": [], "json-ld": [], "opengraph": [{"namespace": {"og": "http://ogp.me/ns#", "fb": "http://ogp.me/ns/fb#", "article": "http://ogp.me/ns/article#"}, "properties": [["fb:app_id", "529217710562597"], ["fb:pages", "146422995398181"], ["og:type", "article"], ["og:title", "Yale Alumnae Stand Up To Kavanaugh, Support His Latest Accuser By The Hundreds"], ["og:url", "http://addictinginfo.com/2018/09/24/yale-alumnae-stand-up-to-kavanaugh-support-his-latest-accuser-by-the-hundreds/"], ["og:description", "But of course, the GOP-led Senate seems to be unmoved by any of this. "], ["og:site_name", "AddictingInfo"], ["og:image", "http://addictinginfo.com/wp-content/uploads/2018/09/Screen-Shot-2018-09-23-at-7.52.05-PM.jpg"], ["og:locale", "en_US"], ["article:author", "http://facebook.com/shannonforequality"], ["article:publisher", "https://www.facebook.com/politicsbyjustin/"], ["fb:op-recirculation-ads", "placement_id=470010220032878_503313496702550"]]}], "microformat": [{"type": ["h-entry"], "properties": {"category": ["news"], "name": ["Yale Alumnae Stand Up To Kavanaugh, Support His Latest Accuser By The Hundreds"], "url": ["http://addictinginfo.com/2018/09/24/yale-alumnae-stand-up-to-kavanaugh-support-his-latest-accuser-by-the-hundreds/"], "updated": ["2018-09-24T14:42:34+00:00"], "published": ["2018-09-24T14:42:34+00:00"], "content": [{"html": "<p>Supreme Court nominee Brett Kavanaugh is embroiled in scandals surrounding his alleged past as a sexual assaulter. Aside from Dr. Christine Blasey Ford\u2019s accusation that Kavanaugh violently </div>", "value": "Supreme Court nominee Brett Kavanaugh is embroiled in scandals surrounding his alleged past as a sexual assaulter. Aside from Dr. Christine Blasey Ford\u2019s accusation that Kavanaugh violently sexually assaulted her when they were both in high sTwitter"}]}, "children": [{"type": ["h-card"], "properties": {"photo": ["http://0.gravatar.com/avatar/33eb8e63d6f325bdcf229ce66edc227a?s=70&d=identicon&r=g"], "name": ["Shannon Barber"], "url": ["http://addictinginfo.com/author/shannon-barber/"]}}]}], "rdfa": [{"@id": "http://addictinginfo.com/2018/09/24/yale-alumnae-stand-up-to-kavanaugh-support-his-latest-accuser-by-the-hundreds/", "article:author": [{"@value": "http://facebook.com/shannonforequality"}], "article:publisher": [{"@value": "https://www.facebook.com/politicsbyjustin/"}], "http://ogp.me/ns#description": [{"@value": "But of course, the GOP-led Senate seems to be unmoved by any of this. "}], "http://ogp.me/ns#image": [{"@value": "http://addictinginfo.com/wp-content/uploads/2018/09/Screen-Shot-2018-09-23-at-7.52.05-PM.jpg"}], "http://ogp.me/ns#locale": [{"@value": "en_US"}], "http://ogp.me/ns#site_name": [{"@value": "AddictingInfo"}], "http://ogp.me/ns#title": [{"@value": "Yale Alumnae Stand Up To Kavanaugh, Support His Latest Accuser By The Hundreds"}], "http://ogp.me/ns#type": [{"@value": "article"}], "http://ogp.me/ns#url": [{"@value": "http://addictinginfo.com/2018/09/24/yale-alumnae-stand-up-to-kavanaugh-support-his-latest-accuser-by-the-hundreds/"}], "http://ogp.me/ns/fb#app_id": [{"@value": "529217710562597"}], "http://ogp.me/ns/fb#op-recirculation-ads": [{"@value": "placement_id=470010220032878_503313496702550"}], "http://ogp.me/ns/fb#pages": [{"@value": "146422995398181"}], "https://api.w.org/": [{"@id": "http://addictinginfo.com/wp-json/"}]}]}""">
-
 type AzureConnection = {
     BlobConnection : string
     SqlConnection : string 
@@ -26,10 +24,14 @@ type AzureConnection = {
 
 let parseArticleData (rdr: SqlDataReader) includeContent = 
     [| while rdr.Read() do 
-        yield { ID = rdr.GetString(0)
-                Title = rdr.GetString(1)
-                SourceWebsite = rdr.GetString(2)
-                Text = (if includeContent then Some [| rdr.GetString(3) |] else None)
+        yield { 
+          ID = rdr.GetString(0)
+          Title = rdr.GetString(1)
+          SourceWebsite = rdr.GetString(2)
+          Text = 
+            (if includeContent then 
+               Some (ofJson<string[]>(rdr.GetString(3))) 
+             else None)
                  } |]    
 
 
@@ -96,13 +98,6 @@ let getArticlesBlob (connectionString : AzureConnection) = task {
     let articleBlob = container.GetBlockBlobReference "articles/misinformation.txt"
     return articleBlob }
 
-let getTitle (a:ArticleDBData) =
-    a.microformat_metadata.opengraph 
-    |> Array.collect (fun og -> 
-        og.properties 
-        |> Array.filter (fun p -> p |> Array.contains "og:title" )
-        |> Array.map (fun a' -> a'.[1]))
-    |> fun arr -> if arr.Length > 0 then arr.[0] else "Unknown title"
 
 let loadArticlesFromFile connectionString = task {
     let! results = task {
@@ -286,19 +281,7 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
 }
 
 let loadArticleFromDB connectionString link = task {
-    let article = selectArticle link connectionString.SqlConnection true
-
-    // // strip content off html tags
-    // let text = 
-    //     article.Content.Value.Replace("[\"","").Replace("\"]","")
-    //     |> fun s -> s.Split("</p>\", \"<p>")
-    //     |> Array.collect (fun tx -> tx.Split('\n'))
-    //     |> Array.map (fun paragraph ->
-    //         Regex.Replace(paragraph, "<.*?>", ""))
-    //     |> Array.filter (fun paragraph ->
-    //         paragraph.Trim() <> "")
-    //     |> Array.map toUnicode
-
+   let article = selectArticle link connectionString.SqlConnection true
    return
         article
 }
