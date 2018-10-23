@@ -24,76 +24,26 @@ type AzureConnection = {
     SqlConnection : string 
 }
 
-type DBArticle = {
-    Id: int
-    SiteName: string
-    CrawlDate: System.DateTimeOffset
-    ArticleUrl: string
-    Content: string option
-    Metadata: string
-}
+let parseArticleData (rdr: SqlDataReader) includeContent = 
+    [| while rdr.Read() do 
+        yield { ID = rdr.GetString(0)
+                Title = rdr.GetString(1)
+                SourceWebsite = rdr.GetString(2)
+                Text = (if includeContent then Some [| rdr.GetString(3) |] else None)
+                 } |]    
 
-let toUnicode (str: string) =
-    str.Replace("\\u2018", "'")
-       .Replace("\\u2019", "'")
-       .Replace("\\u201c", "'")
-       .Replace("\\u201d", "'")
-       .Replace("\\u00a0", " ")
-       .Replace("\\u2010", "-")
-       .Replace("\\u2011", "-")
-       .Replace("\\u2012", "-")
-       .Replace("\\u2013", "-")
-       .Replace("\\u2014", "-")
-       .Replace("\\u2015", "-")
-       
 
-let selectNumArticlesPerSite numArticlesPerSite sqlConn = 
-  use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
-  conn.Open()
-  let command = sprintf "WITH sorted_articles_by_site AS (
-    SELECT *, ROW_NUMBER() 
-    over (
-        PARTITION BY [site_name] 
-        order by [id]
-    ) AS row_num 
-    FROM [articles]
-)
-SELECT * FROM sorted_articles_by_site WHERE row_num <= %i" numArticlesPerSite
-
-  let command = sprintf "SELECT TOP %i * FROM [articles] WHERE [site_name] = 'addictinginfo.com';" numArticlesPerSite
-
-  use cmd = new SqlCommand(command, conn)
-  let rdr = cmd.ExecuteReader()
-  let result = 
-      [| while rdr.Read() do 
-            yield { Id = rdr.GetInt32(0)
-                    SiteName = rdr.GetString(1)
-                    CrawlDate = rdr.GetDateTimeOffset(2)
-                    ArticleUrl = rdr.GetString(3) 
-                    Content = None
-                    Metadata = rdr.GetString(5) |> toUnicode } |]
-  conn.Close()
-  result  
-
-let selectArticle articleId sqlConn includeContent =
+let selectArticle articleId sqlConn includeText =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
   conn.Open()
 
-  let command = "SELECT * FROM [articles] WHERE [article_url] = @ArticleId;" 
+  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v2] WHERE [article_url] = @ArticleId;" 
   use cmd = new SqlCommand(command, conn)
   cmd.Parameters.AddWithValue("@ArticleId", articleId) |> ignore
 
   let rdr = cmd.ExecuteReader()
   let result =
-      [| while rdr.Read() do 
-            yield { Id = rdr.GetInt32(0)
-                    SiteName = rdr.GetString(1)
-                    CrawlDate = rdr.GetDateTimeOffset(2)
-                    ArticleUrl = rdr.GetString(3)
-                    Content = 
-                       (if includeContent then Some (rdr.GetString(4) |> toUnicode)
-                        else None )
-                    Metadata = rdr.GetString(5) |> toUnicode } |]    
+      parseArticleData rdr includeText
       |> Array.exactlyOne
   conn.Close()  
   result
@@ -135,7 +85,7 @@ let checkAnnotationsExist (connectionString : AzureConnection) userName articles
         articles
         |> Array.map (fun article ->  
             article, 
-            if result.Contains(article.ArticleUrl) then true else false)
+            if result.Contains(article.ID) then true else false)
     conn.Close()
     return annotations        
 }
@@ -173,16 +123,19 @@ let loadArticlesFromFile connectionString = task {
 let selectUnfinishedArticles connectionString userName =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
-    let command = "SELECT article_url FROM [annotations] WHERE user_id = @UserId AND annotation IS NULL;"
+    let command = "
+WITH unfinished_articles AS (
+    SELECT article_url 
+    FROM [annotations] 
+    WHERE user_id =@UserId AND annotation IS NULL
+)
+SELECT articles_v2.article_url, title, site_name, plain_content FROM [articles_v2] 
+RIGHT JOIN unfinished_articles ON articles_v2.article_url = unfinished_articles.article_url"
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = 
-        [| while rdr.Read() do 
-            let article_url = rdr.GetString(0)
-            yield article_url |]
-        |> Array.map (fun articleId -> selectArticle articleId connectionString.SqlConnection false )
+    let result = parseArticleData rdr false
     conn.Close()
     result
 
@@ -195,28 +148,55 @@ WITH unfinished_articles AS (
     FROM [annotations] 
     GROUP BY article_url 
     HAVING (COUNT(article_url) = 1)
-)
+),
+to_finish AS (
 SELECT article_url
 FROM [annotations]
 WHERE user_id <> @UserId 
     AND EXISTS 
      (SELECT * FROM unfinished_articles 
-      WHERE unfinished_articles.article_url = annotations.article_url);"
+      WHERE unfinished_articles.article_url = annotations.article_url)
+)
+SELECT articles_v2.article_url, title, site_name, plain_content 
+FROM [articles_v2] RIGHT JOIN to_finish 
+ON to_finish.article_url = articles_v2.article_url"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
 
     let rdr = cmd.ExecuteReader()
-    let result = 
-        [| while rdr.Read() do 
-            let article_url = rdr.GetString(0)
-            yield article_url |]
-        |> Array.map (fun articleId -> selectArticle articleId connectionString.SqlConnection false )
+    let result = parseArticleData rdr false
     conn.Close()
     result
 
 let selectNewArticles articlesToShow connectionString =
-    selectNumArticlesPerSite articlesToShow connectionString.SqlConnection    
+    // Select all articles in active batches that are not currently being annotated already
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "
+WITH selected_articles AS (
+    SELECT TOP 100 article_url FROM [batch_article]
+    WHERE
+    article_url NOT IN (
+            SELECT article_url FROM [annotations]
+    ) 
+    AND
+    batch_id IN (
+            SELECT batch_id FROM [batch] WHERE active = 1
+    )
+    ORDER BY batch_id DESC
+)
+SELECT TOP (@ArticleCount) articles_v2.article_url, title, site_name, plain_content 
+FROM [articles_v2] RIGHT JOIN selected_articles 
+ON articles_v2.article_url = selected_articles.article_url
+"    
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
+
+    let rdr = cmd.ExecuteReader()
+    let result = parseArticleData rdr false
+    conn.Close()
+    result
 
 let loadArticlesFromSQLDatabase connectionString userData = task {
     // TODO: Find articles that should be displayed to the specific user
@@ -251,8 +231,8 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
         let allArticles =
             let rnd = new System.Random()
             [| articlesUnfinished; 
-               //articlesUncomplete; 
-               //articlesNew 
+               articlesUncomplete; 
+               articlesNew 
                |]
             |> Array.concat
             |> Array.sortBy (fun _ -> rnd.Next())
@@ -260,7 +240,7 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
         return allArticles
 }
 
-let markAssignedArticles connectionString (articles: DBArticle []) (userData : Domain.UserData) =
+let markAssignedArticles connectionString (articles: Article []) (userData : Domain.UserData) =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
@@ -279,7 +259,7 @@ let markAssignedArticles connectionString (articles: DBArticle []) (userData : D
 
     articles 
     |> Array.iter (fun article ->
-        cmd.Parameters.["@Url"].Value <- article.ArticleUrl
+        cmd.Parameters.["@Url"].Value <- article.ID
         cmd.Parameters.["@UserId"].Value <- userData.UserName
         cmd.Parameters.["@Proficiency"].Value <- string userData.Proficiency
         cmd.Parameters.["@CreatedDate"].Value <- System.DateTime.UtcNow
@@ -300,17 +280,6 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
         { UserName = userData.UserName
           Articles =
             annotated
-            |> Array.mapi (fun i (article, ann) ->
-                let title = 
-                    let regex = Regex.Match(article.Metadata, "\"name\": \[\"(.*?)\"\]")
-                    if regex.Success then
-                        (regex.Value.Replace("\"name\": [\"", "").Replace("\"]","")) 
-                    else 
-                        string i + " Unable to parse"
-                { Title = title
-                  ID = article.ArticleUrl
-                  Text = None
-                  SourceWebsite = article.SiteName }, ann)
             |> List.ofArray } 
 
     return result
@@ -319,27 +288,19 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
 let loadArticleFromDB connectionString link = task {
     let article = selectArticle link connectionString.SqlConnection true
 
-    // strip content off html tags
-    let text = 
-        article.Content.Value.Replace("[\"","").Replace("\"]","")
-        |> fun s -> s.Split("</p>\", \"<p>")
-        |> Array.collect (fun tx -> tx.Split('\n'))
-        |> Array.map (fun paragraph ->
-            Regex.Replace(paragraph, "<.*?>", ""))
-        |> Array.filter (fun paragraph ->
-            paragraph.Trim() <> "")
-        |> Array.map toUnicode
+    // // strip content off html tags
+    // let text = 
+    //     article.Content.Value.Replace("[\"","").Replace("\"]","")
+    //     |> fun s -> s.Split("</p>\", \"<p>")
+    //     |> Array.collect (fun tx -> tx.Split('\n'))
+    //     |> Array.map (fun paragraph ->
+    //         Regex.Replace(paragraph, "<.*?>", ""))
+    //     |> Array.filter (fun paragraph ->
+    //         paragraph.Trim() <> "")
+    //     |> Array.map toUnicode
 
    return
-        { Title = 
-            let regex = Regex.Match(article.Metadata, "\"name\": \[\"(.*?)\"\]")
-            if regex.Success then
-                (regex.Value.Replace("\"name\": [\"", "").Replace("\"]",""))
-            else 
-                "Unable to parse"
-          ID = article.ArticleUrl
-          Text = Some text 
-          SourceWebsite = article.SiteName }
+        article
 }
 
 
