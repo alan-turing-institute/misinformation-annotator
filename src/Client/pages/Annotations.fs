@@ -17,7 +17,7 @@ open System
 type Model =
   { Annotations : ArticleList
     Token : string
-    UserName : string
+    UserInfo : UserData
     ResetTime : DateTime option
     ErrorMsg : string option
     SelectedArticle : Article option }
@@ -75,7 +75,7 @@ let init (user:UserData, articleList : ArticleList option) =
         | None -> ArticleList.New user.UserName
         | Some a -> a
       Token = user.Token
-      UserName = user.UserName
+      UserInfo = user
       ResetTime = None
       ErrorMsg = None
       SelectedArticle = None
@@ -128,6 +128,16 @@ let view (model:Model) (dispatch: Msg -> unit) =
         h4 [] [
             let time = model.ResetTime |> Option.map (fun t -> " - Last database reset at " + t.ToString("yyyy-MM-dd HH:mm") + "UTC") |> Option.defaultValue ""
             yield str (sprintf "Annotations for %s%s" model.Annotations.UserName time) ]
+
+        // div [] [
+        //     match model.UserInfo.Proficiency with
+        //     | Expert ->
+        //        yield button [ ClassName "button btn-info" ] [ str "Show all articles" ]
+        //        yield button [ ClassName "button btn-info" ] [ str "Show articles with conflicting annotations" ]
+        //        yield button [ ClassName "button btn-info" ] [ str "Show articles with two standard annotations" ]
+        //     | User | Training -> ()
+        // ]
+
         table [ClassName "table table-striped table-hover"] [
             thead [] [
                     tr [] [

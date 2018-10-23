@@ -25,18 +25,26 @@ type UserData =
 
 type ArticleText = string []
 
+type ArticleAssignment =
+    | Unfinished
+    | Standard
+    | ConflictingAnnotation
+    | ThirdExpertAnnotation
+
 /// The data for each article in /api/annotations
 type Article =
     { Title: string
       ID: string 
       Text: ArticleText option // maybe can remove text from here
-      SourceWebsite: string } 
+      SourceWebsite: string
+      AssignmentType: ArticleAssignment } 
 
     static member empty =
         { Title = ""
           ID = "" 
           Text = None
-          SourceWebsite = "" }                    
+          SourceWebsite = ""
+          AssignmentType = Standard }                    
 
 /// The logical representation of the data for /api/annotations
 type Annotated = bool

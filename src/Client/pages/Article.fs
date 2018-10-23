@@ -26,7 +26,7 @@ type Model = {
     StartedEditing: System.DateTime
     User: UserData
     Heading: string
-    Text: string [] 
+    Text: string []
     Link: string
     SourceWebsite: string
     MentionsSources: ArticleSourceType option
@@ -619,7 +619,11 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | FetchArticle -> 
         model |> isCompleted, 
         fetchArticleCmd 
-            { Article.Title = model.Heading; ID = model.Link; Text = None; SourceWebsite = model.SourceWebsite } model.User,
+            { Article.Title = model.Heading; 
+              ID = model.Link; 
+              Text = None; 
+              SourceWebsite = model.SourceWebsite
+              AssignmentType = Standard } model.User,
             NoOp
          
     | View -> 

@@ -22,12 +22,13 @@ type AzureConnection = {
     SqlConnection : string 
 }
 
-let parseArticleData (rdr: SqlDataReader) includeContent = 
+let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) includeContent = 
     [| while rdr.Read() do 
         yield { 
           ID = rdr.GetString(0)
           Title = rdr.GetString(1)
           SourceWebsite = rdr.GetString(2)
+          AssignmentType = assignmentType
           Text = 
             (if includeContent then 
                Some (ofJson<string[]>(rdr.GetString(3))) 
@@ -35,7 +36,7 @@ let parseArticleData (rdr: SqlDataReader) includeContent =
                  } |]    
 
 
-let selectArticle articleId sqlConn includeText =
+let selectArticle articleId sqlConn assignmentType includeText =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
   conn.Open()
 
@@ -45,7 +46,7 @@ let selectArticle articleId sqlConn includeText =
 
   let rdr = cmd.ExecuteReader()
   let result =
-      parseArticleData rdr includeText
+      parseArticleData rdr assignmentType includeText
       |> Array.exactlyOne
   conn.Close()  
   result
@@ -130,11 +131,12 @@ RIGHT JOIN unfinished_articles ON articles_v2.article_url = unfinished_articles.
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr false
+    let result = parseArticleData rdr Unfinished false
     conn.Close()
     result
 
 let selectAddAnnotationArticles connectionString userName =
+    // articles that have only one annotation right now
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
     let command = "
@@ -160,7 +162,7 @@ ON to_finish.article_url = articles_v2.article_url"
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
 
     let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr false
+    let result = parseArticleData rdr Standard false
     conn.Close()
     result
 
@@ -189,13 +191,82 @@ ON articles_v2.article_url = selected_articles.article_url
     cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr false
+    let result = parseArticleData rdr Standard false
     conn.Close()
     result
 
+let selectConflictingArticles userName connectionString =
+    // Select all articles that have two annotations with conflicting number of sources identified
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "
+WITH conflicts AS (
+    SELECT DISTINCT article_url
+    FROM [annotations]
+    WHERE article_url IN (
+        SELECT article_url FROM [annotations]
+        WHERE user_id <> @UserId
+        GROUP BY article_url
+        HAVING COUNT(distinct num_sources) = 2
+    ) 
+)
+SELECT articles_v2.article_url, title, site_name, plain_content 
+FROM [articles_v2] RIGHT JOIN conflicts 
+ON articles_v2.article_url = conflicts.article_url"  
+
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
+
+    let rdr = cmd.ExecuteReader()
+    let result = parseArticleData rdr ConflictingAnnotation false
+    conn.Close()
+    result
+
+let selectFinishedArticles userName connectionString =
+    // Select all articles that have two annotations by normal users
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "
+WITH conflicts AS (
+    SELECT DISTINCT article_url
+    FROM [annotations]
+    WHERE article_url IN (
+        SELECT article_url FROM [annotations]
+        WHERE user_id <> @UserId
+        GROUP BY article_url
+        HAVING COUNT(*) = 2
+    ) 
+)
+SELECT articles_v2.article_url, title, site_name, plain_content 
+FROM [articles_v2] RIGHT JOIN conflicts 
+ON articles_v2.article_url = conflicts.article_url"  
+
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
+
+    let rdr = cmd.ExecuteReader()
+    let result = parseArticleData rdr ThirdExpertAnnotation false
+    conn.Close()
+    result
+
+let loadNextBatchOfArticles connectionString userName articlesToShow =
+    // 1. Select articles that have annotation by only one user
+    let articlesUncomplete =
+        selectAddAnnotationArticles connectionString userName
+
+    // 3. Select the remaining articles from the current batch in the articles database
+    let articlesNew =
+        let n = articlesToShow - articlesUncomplete.Length
+        if n > 0 then 
+            selectNewArticles n connectionString
+        else    
+            [||]
+
+    Array.append articlesUncomplete articlesNew
+
 let loadArticlesFromSQLDatabase connectionString userData = task {
     // TODO: Find articles that should be displayed to the specific user
-    let articlesToShow = 20
+    let articlesToShow = 30
 
     match userData.Proficiency with
     | Training //->
@@ -205,34 +276,54 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
         // }
         // return results
         
-    | User | Expert ->
+    | User ->
         // 1. Select articles assigned to user with unfinished annotations
         let articlesUnfinished =
             selectUnfinishedArticles connectionString userData.UserName
 
-        // 2. Select articles that have annotation by only one user
-        let articlesUncomplete =
-            selectAddAnnotationArticles connectionString userData.UserName
-
-        // 3. Select the remaining articles from the current batch in the articles database
-        let articlesNew =
-            let n = articlesToShow - articlesUnfinished.Length - articlesUncomplete.Length
-            if n > 0 then 
-                selectNewArticles n connectionString
-            else    
-                [||]
+        // 2. Load articles that need to be completed and new articles
+        let articlesOther = loadNextBatchOfArticles connectionString userData.UserName (articlesToShow - articlesUnfinished.Length)
 
         // -- randomize the order of articles as they are shown to the user
         let allArticles =
             let rnd = new System.Random()
             [| articlesUnfinished; 
-               articlesUncomplete; 
-               articlesNew 
+               articlesOther 
                |]
             |> Array.concat
             |> Array.sortBy (fun _ -> rnd.Next())
 
         return allArticles
+    
+    | Expert ->
+        // 1. Select articles assigned to user with unfinished annotations
+        let articlesUnfinished =
+            selectUnfinishedArticles connectionString userData.UserName
+
+        // 2. Select articles with conflicting annotations
+        let articlesConflicts = selectConflictingArticles userData.UserName connectionString
+
+        // 3. Select articles to add third annotation
+        let articlesThirdAnnotation = selectFinishedArticles userData.UserName connectionString
+
+        // 4. Select articles like for normal users
+        let articlesOther = 
+            loadNextBatchOfArticles connectionString userData.UserName 
+                (articlesToShow - articlesUnfinished.Length - articlesConflicts.Length - articlesThirdAnnotation.Length)
+
+        let allArticles =
+            let rnd = new System.Random()
+            [| articlesUnfinished; 
+               articlesConflicts;
+               //articlesThirdAnnotation;
+               articlesOther 
+               |]
+            |> Array.concat
+            |> Array.take 30
+            |> Array.sortBy (fun _ -> rnd.Next())
+
+        return allArticles
+
 }
 
 let markAssignedArticles connectionString (articles: Article []) (userData : Domain.UserData) =
@@ -281,7 +372,7 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
 }
 
 let loadArticleFromDB connectionString link = task {
-   let article = selectArticle link connectionString.SqlConnection true
+   let article = selectArticle link connectionString.SqlConnection Standard true
    return
         article
 }
