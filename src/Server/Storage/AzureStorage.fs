@@ -207,27 +207,27 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
     // TODO: Find articles that should be displayed to the specific user
 
     match userData.Proficiency with
-    | Training | User | Expert ->
+    | Training ->
         let! results = task {
             let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
             return articles
         }
         return results
         
-    // | User | Expert ->
-    //     // 1. Select articles assigned to user with unfinished annotations
-    //     let articlesUnfinished =
-    //         selectUnfinishedArticles connectionString userData.UserName
+    | User | Expert ->
+        // 1. Select articles assigned to user with unfinished annotations
+        let articlesUnfinished =
+            selectUnfinishedArticles connectionString userData.UserName
 
-    //     // 2. Select articles that have annotation by only one user
-    //     let articlesUncomplete =
-    //         selectAddAnnotationArticles connectionString userData.UserName
+        // 2. Select articles that have annotation by only one user
+        let articlesUncomplete =
+            selectAddAnnotationArticles connectionString userData.UserName
 
-    //     // 3. Select the remaining articles from the current batch
+        // 3. Select the remaining articles from the current batch
 
 
-    //     // -- randomize the order of articles as they are shown to the user
-    //     return [||]
+        // -- randomize the order of articles as they are shown to the user
+        return [||]
 }
 
 
