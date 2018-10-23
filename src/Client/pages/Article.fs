@@ -69,6 +69,7 @@ type Msg =
 type ExternalMsg = 
     | NoOp    
     | NextArticle of string // pass the link to the current article
+    | MarkAsAnnotated of string // mark current article as annotated
 
 
 let fetchArticle (article : Domain.Article, user : Domain.UserData) =
@@ -747,7 +748,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | Submitted resp ->
         match resp.Success with 
         | true -> 
-            { model with Submitted = Some true } |> isCompleted, Cmd.none, NoOp
+            { model with Submitted = Some true } |> isCompleted, Cmd.none, ExternalMsg.MarkAsAnnotated model.Link
         | false -> 
             { model with Submitted = Some false } |> isCompleted, Cmd.none, NoOp
     

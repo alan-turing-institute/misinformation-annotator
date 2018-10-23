@@ -157,6 +157,20 @@ let update msg model =
         | Article.ExternalMsg.NoOp ->
             { model with PageModel = ArticleModel m' }, Cmd.map ArticleMsg cmd
 
+        | Article.ExternalMsg.MarkAsAnnotated id ->
+            let model' = 
+                { model with 
+                   AllArticles = 
+                    model.AllArticles 
+                    |> Option.map (fun aa ->
+                        { aa with 
+                            Articles = 
+                              aa.Articles
+                              |> List.map (fun (a, isAnnotated) -> 
+                                  if a.ID = id then (a, true) else (a, isAnnotated))})}
+            { model' with PageModel = ArticleModel m' }, 
+            Cmd.map ArticleMsg cmd
+
         | Article.ExternalMsg.NextArticle id ->
             Browser.console.log("Going to the next article...")
             // mark current article as annotated 
