@@ -189,8 +189,22 @@ let selectUnfinishedArticles connectionString userName =
 let selectAddAnnotationArticles connectionString userName =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
-    let command = "SELECT article_url FROM [annotations] GROUP BY article_url HAVING (COUNT(article_url) = 1)"
+    let command = "
+WITH unfinished_articles AS (
+    SELECT article_url 
+    FROM [annotations] 
+    GROUP BY article_url 
+    HAVING (COUNT(article_url) = 1)
+)
+SELECT article_url
+FROM [annotations]
+WHERE user_id <> @UserId 
+    AND EXISTS 
+     (SELECT * FROM unfinished_articles 
+      WHERE unfinished_articles.article_url = annotations.article_url);"
+
     use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
 
     let rdr = cmd.ExecuteReader()
     let result = 
@@ -198,21 +212,23 @@ let selectAddAnnotationArticles connectionString userName =
             let article_url = rdr.GetString(0)
             yield article_url |]
         |> Array.map (fun articleId -> selectArticle articleId connectionString.SqlConnection false )
-        // filter out the unfinished articles, assigned but unfinished
-        //|> Array.filter (fun article -> article.)
     conn.Close()
     result
 
+let selectNewArticles articlesToShow connectionString =
+    selectNumArticlesPerSite articlesToShow connectionString.SqlConnection    
+
 let loadArticlesFromSQLDatabase connectionString userData = task {
     // TODO: Find articles that should be displayed to the specific user
+    let articlesToShow = 20
 
     match userData.Proficiency with
-    | Training ->
-        let! results = task {
-            let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
-            return articles
-        }
-        return results
+    | Training //->
+        // let! results = task {
+        //     let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
+        //     return articles
+        // }
+        // return results
         
     | User | Expert ->
         // 1. Select articles assigned to user with unfinished annotations
@@ -223,13 +239,53 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
         let articlesUncomplete =
             selectAddAnnotationArticles connectionString userData.UserName
 
-        // 3. Select the remaining articles from the current batch
-
+        // 3. Select the remaining articles from the current batch in the articles database
+        let articlesNew =
+            let n = articlesToShow - articlesUnfinished.Length - articlesUncomplete.Length
+            if n > 0 then 
+                selectNewArticles n connectionString
+            else    
+                [||]
 
         // -- randomize the order of articles as they are shown to the user
-        return [||]
+        let allArticles =
+            let rnd = new System.Random()
+            [| articlesUnfinished; 
+               //articlesUncomplete; 
+               //articlesNew 
+               |]
+            |> Array.concat
+            |> Array.sortBy (fun _ -> rnd.Next())
+
+        return allArticles
 }
 
+let markAssignedArticles connectionString (articles: DBArticle []) (userData : Domain.UserData) =
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+
+    let commandText = 
+       "IF (NOT EXISTS (SELECT * FROM [annotations] WHERE article_url = @Url AND user_id = @UserId))
+       BEGIN
+         INSERT INTO [annotations](article_url, user_id, user_proficiency,created_date) 
+           VALUES (@Url, @UserId, @Proficiency, @CreatedDate)
+       END"
+    let cmd = new SqlCommand(commandText, conn)
+    
+    cmd.Parameters.Add("@Url", SqlDbType.NVarChar) |> ignore
+    cmd.Parameters.Add("@UserId", SqlDbType.NVarChar) |> ignore
+    cmd.Parameters.Add("@Proficiency", SqlDbType.NVarChar) |> ignore
+    cmd.Parameters.Add("@CreatedDate", SqlDbType.DateTime) |> ignore
+
+    articles 
+    |> Array.iter (fun article ->
+        cmd.Parameters.["@Url"].Value <- article.ArticleUrl
+        cmd.Parameters.["@UserId"].Value <- userData.UserName
+        cmd.Parameters.["@Proficiency"].Value <- string userData.Proficiency
+        cmd.Parameters.["@CreatedDate"].Value <- System.DateTime.UtcNow
+
+        cmd.ExecuteNonQuery() |> ignore
+    )
 
 
 /// Load list of articles from the database
@@ -237,6 +293,8 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
 
     let! articles = loadArticlesFromSQLDatabase connectionString userData
     let! annotated = checkAnnotationsExist connectionString userData.UserName articles
+    // Mark articles as assigned to the current user
+    markAssignedArticles connectionString articles userData
 
     let result =         
         { UserName = userData.UserName
@@ -294,15 +352,14 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
     // TODO: Check if there already is an entry with the same user-article pair
     // and if so, then overwrite that
     let commandText = 
-       "INSERT INTO [annotations](article_url, annotation, user_id, user_proficiency,created_date, updated_date, num_sources) 
-        VALUES (@Url, @Annotation, @UserId, @Proficiency, @CreatedDate, @UpdatedDate, @NumSources);"
+       "UPDATE [annotations]
+       SET annotation = @Annotation, updated_date = @UpdatedDate, num_sources = @NumSources
+       WHERE article_url = @Url AND user_id = @UserId; "
     let cmd = new SqlCommand(commandText, conn)
     
     cmd.Parameters.AddWithValue("@Url", annotations.ArticleID) |> ignore
     cmd.Parameters.AddWithValue("@Annotation", toJson annotations)  |> ignore
     cmd.Parameters.AddWithValue("@UserId", annotations.User.UserName)  |> ignore
-    cmd.Parameters.AddWithValue("@Proficiency", string annotations.User.Proficiency)  |> ignore
-    cmd.Parameters.AddWithValue("@CreatedDate", annotations.CreatedUTC.Value)  |> ignore
     cmd.Parameters.AddWithValue("@UpdatedDate", System.DateTime.UtcNow)  |> ignore
     cmd.Parameters.AddWithValue("@NumSources", annotations.Annotations.Length)  |> ignore
 
@@ -331,7 +388,7 @@ let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
-    let command = "SELECT annotation FROM [annotations] WHERE article_url = @ArticleUrl AND user_id = @UserId;" 
+    let command = "SELECT annotation FROM [annotations] WHERE article_url = @ArticleUrl AND user_id = @UserId AND annotation IS NOT NULL;" 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@ArticleUrl", articleId) |> ignore
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
