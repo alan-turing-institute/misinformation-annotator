@@ -181,7 +181,7 @@ WITH selected_articles AS (
     batch_id IN (
             SELECT batch_id FROM [batch] WHERE active = 1
     )
-    ORDER BY batch_id DESC
+    ORDER BY batch_id DESC, newid() 
 )
 SELECT TOP (@ArticleCount) articles_v2.article_url, title, site_name, plain_content 
 FROM [articles_v2] RIGHT JOIN selected_articles 
