@@ -291,7 +291,7 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
                articlesOther 
                |]
             |> Array.concat
-            |> Array.sortBy (fun _ -> rnd.Next())
+            //|> Array.sortBy (fun _ -> rnd.Next())
 
         return allArticles
     
@@ -299,17 +299,21 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
         // 1. Select articles assigned to user with unfinished annotations
         let articlesUnfinished =
             selectUnfinishedArticles connectionString userData.UserName
+        printfn "%d" articlesUnfinished.Length
 
         // 2. Select articles with conflicting annotations
         let articlesConflicts = selectConflictingArticles userData.UserName connectionString
+        printfn "%d" articlesConflicts.Length
 
         // 3. Select articles to add third annotation
         let articlesThirdAnnotation = selectFinishedArticles userData.UserName connectionString
+        printfn "%d" articlesThirdAnnotation.Length
 
         // 4. Select articles like for normal users
         let articlesOther = 
             loadNextBatchOfArticles connectionString userData.UserName 
-                (articlesToShow - articlesUnfinished.Length - articlesConflicts.Length - articlesThirdAnnotation.Length)
+                (articlesToShow - articlesUnfinished.Length - articlesConflicts.Length)// - articlesThirdAnnotation.Length)
+        printfn "%d" articlesOther.Length
 
         let allArticles =
             let rnd = new System.Random()
@@ -320,7 +324,7 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
                |]
             |> Array.concat
             |> Array.take 30
-            |> Array.sortBy (fun _ -> rnd.Next())
+            //|> Array.sortBy (fun _ -> rnd.Next())
 
         return allArticles
 

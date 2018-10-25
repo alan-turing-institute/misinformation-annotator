@@ -473,10 +473,10 @@ let view (model:Model) (dispatch: Msg -> unit) =
           yield h4 [] [ str (model.SourceWebsite)]
           yield 
             div [ ClassName "article" ] [
-              div [ ClassName "article-highlights" ] 
+              div [ ClassName "article-highlights container col-sm-12" ] 
                 [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
                     yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) ]
-              div [ ClassName "article-text" ] 
+              div [ ClassName "article-text container col-sm-12" ] 
                 [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
                     yield p  
                       [ OnMouseUp (fun e -> 
