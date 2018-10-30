@@ -293,7 +293,7 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                          | Some Named -> ClassName "btn btn-info"
                          | Some (Anonymous _) -> ClassName "btn btn-light")
                         OnClick (fun _ -> dispatch (IsSourceAnonymous (n, false))) ] 
-                        [ str "Named" ]
+                        [ str "Not anonymous" ]
                     button [ 
                         (match model.SourceInfo.[n].SourceType with
                          | None -> ClassName "btn btn-light"
