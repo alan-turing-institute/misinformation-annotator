@@ -257,7 +257,14 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
             input [ HTMLAttr.Type "text"
                     ClassName "form-control input-md"
                     Placeholder "Notes"
-                    DefaultValue ""
+                    DefaultValue (
+                        match model.SourceInfo.[n].UserNotes with
+                        | Some(note) -> note
+                        | None -> "") 
+                    Value (
+                        match model.SourceInfo.[n].UserNotes with
+                        | Some(note) -> note
+                        | None -> "") 
                     AutoFocus false
                     OnChange (fun ev -> dispatch (SetNote (n,!!ev.target?value)))
                     ]
