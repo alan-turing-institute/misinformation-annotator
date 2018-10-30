@@ -253,6 +253,7 @@ let getSelection (model: Model) e : SelectionResult =
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
     div [ClassName "container col-sm-12"] [
         h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
+        button [ OnClick (fun _ -> dispatch (RemoveSource n)) ] [str "Delete source"]
         input [ HTMLAttr.Type "text"
                 ClassName "form-control input-md"
                 Placeholder "Notes"
@@ -854,9 +855,15 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
 
     | RemoveSource sourceId ->
         // remove entire source and relabel other sources?
-        let sources1, sources2 = 
-            model.SourceInfo |> Array.splitAt sourceId
-        let updatedSources = 
-            Array.append sources1 
-                (Array.tail sources2)
-        { model with SourceInfo = updatedSources }, Cmd.none, NoOp
+        let sources = 
+            model.SourceInfo
+            |> Array.indexed 
+            |> Array.choose (fun (i, source) ->
+                if i <> sourceId then
+                    if i > sourceId then 
+                        Some { source with SourceID = i - 1 }
+                    else Some source
+                else 
+                    None)
+
+        { model with SourceInfo = sources }, Cmd.none, NoOp
