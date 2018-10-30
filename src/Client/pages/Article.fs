@@ -515,7 +515,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                             yield button [ 
                                    ClassName "btn btn-danger delete-highlight-btn" 
                                    OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
-                                   [ str "Delete" ]
+                                   [ str ("╳ Source " + string (id + 1)) ]
                             yield span [] [ str part2 ]
                        ] 
                 ]
