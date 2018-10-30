@@ -65,6 +65,7 @@ type Msg =
     | IncorrectlyParsed 
     | TagSuccess of AnswersResponse
     | TagError of exn
+    | RemoveSource of SourceId
 
 type ExternalMsg = 
     | NoOp    
@@ -850,3 +851,12 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             model, Cmd.none, NoOp
 
     | TagError _ -> { model with FlaggedParsingErrors = false }, Cmd.none, NoOp
+
+    | RemoveSource sourceId ->
+        // remove entire source and relabel other sources?
+        let sources1, sources2 = 
+            model.SourceInfo |> Array.splitAt sourceId
+        let updatedSources = 
+            Array.append sources1 
+                (Array.tail sources2)
+        { model with SourceInfo = updatedSources }, Cmd.none, NoOp
