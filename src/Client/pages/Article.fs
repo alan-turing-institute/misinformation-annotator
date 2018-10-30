@@ -252,16 +252,21 @@ let getSelection (model: Model) e : SelectionResult =
     
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
     div [ClassName "container col-sm-12"] [
-        h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
-        button [ OnClick (fun _ -> dispatch (RemoveSource n)) ] [str "Delete source"]
-        input [ HTMLAttr.Type "text"
-                ClassName "form-control input-md"
-                Placeholder "Notes"
-                DefaultValue ""
-                AutoFocus false
-                OnChange (fun ev -> dispatch (SetNote (n,!!ev.target?value)))
-                ]
-        br []
+        div [ClassName "row"] [
+            h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
+            input [ HTMLAttr.Type "text"
+                    ClassName "form-control input-md"
+                    Placeholder "Notes"
+                    DefaultValue ""
+                    AutoFocus false
+                    OnChange (fun ev -> dispatch (SetNote (n,!!ev.target?value)))
+                    ]
+            button [ 
+                ClassName "btn btn-white .small pull-right"
+                OnClick (fun _ -> dispatch (RemoveSource n)) ] 
+                [str "╳  Delete source"]  
+        ]      
+        div [ClassName "row"] [
         ol [ ] [
             yield li [ ] 
                [ str "Highlight the portion of the text that refers to this source."
@@ -359,6 +364,7 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                         OnClick (fun _ -> dispatch (FinishedHighlighting))
                     ] [ str "Finish" ]
                 ]
+        ]
         ]
     ]
 
