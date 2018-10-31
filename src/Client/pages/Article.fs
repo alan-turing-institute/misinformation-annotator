@@ -73,6 +73,12 @@ type ExternalMsg =
     | MarkAsAnnotated of string // mark current article as annotated
 
 
+let colours = 
+    [|"#8dd3c7";"#fdb462";"#bebada";"#fb8072";"#80b1d3";"#ffffb3";"#b3de69";"#fccde5";"#d9d9d9";"#bc80bd";"#ccebc5";"#ffed6f"|]
+let getColour id = 
+    colours.[id % colours.Length]
+
+
 let fetchArticle (article : Domain.Article, user : Domain.UserData) =
     promise {
         let url = ServerUrls.APIUrls.Article
@@ -253,7 +259,10 @@ let getSelection (model: Model) e : SelectionResult =
 let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
     div [ClassName "container col-sm-12"] [
         div [ClassName "row"] [
-            h4 [ ClassName ("question" + string n) ] [ str ("Source number " + string (n+1)) ]
+            h4 [ ClassName "question"
+                 Style [ BorderBottomColor (getColour n) ]  
+                 ] 
+                 [ str ("Source number " + string (n+1)) ]
             input [ HTMLAttr.Type "text"
                     ClassName "form-control input-md"
                     Placeholder "Notes"
@@ -274,7 +283,7 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                 [str "╳  Delete source"]  
         ]      
         div [ClassName "row"] [
-        ol [ ] [
+          ol [ ] [
             yield li [ ] 
                [ str "Highlight the portion of the text that refers to this source."
                  br []
@@ -371,7 +380,7 @@ let viewAddSource (model: Model) n (dispatch: Msg -> unit) =
                         OnClick (fun _ -> dispatch (FinishedHighlighting))
                     ] [ str "Finish" ]
                 ]
-        ]
+          ]
         ]
     ]
 
@@ -460,10 +469,11 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
     |> List.map (fun part ->
         match part.SpanId with
         | Some (SourceText id) ->
-            span [ ClassName ("span" + string id)
+            span [ ClassName "span"
+                   Style [ BackgroundColor (getColour id) ]
                       ] [ str part.Text ]
         | Some (AnonymityText id) ->
-            span [ ClassName ("anon" + string id) ] [ str part.Text ]
+            span [ ClassName "anon"; Style [BorderBottomColor (getColour id)] ] [ str part.Text ]
         | Some (NoHighlight) ->
             str part.Text
         | None -> str part.Text)    
@@ -577,11 +587,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
                       yield viewAddSource model i dispatch
                       
                  yield button 
-                        (if model.SourceInfo.Length < 10 then 
-                            [ ClassName "btn btn-primary"
-                              OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
-                         else
-                            [ ClassName "btn btn-disabled" ]) 
+                        [ ClassName "btn btn-primary"
+                          OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
                         [ str "+ Add additional source"]
             yield 
                 div [] [

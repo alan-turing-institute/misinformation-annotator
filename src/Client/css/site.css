@@ -179,45 +179,9 @@ body {
     margin: 10px 10px 10px 10px;
 }
 
-.span0 { background-color: #b3e2cd; }
+.span { opacity: 0.7 }
 
-.span1 { background-color: #fdcdac; }
-
-.span2 { background-color: #cbd5e8; }
-
-.span3 { background-color: #f4cae4; }
-
-.span4 {background-color: #e6f5c9; }
-
-.span5 { background-color: #e3daa6; }
-
-.span6 { background-color: #b2df8a; }
-
-.span7 { background-color: #fb9a99; }
-
-.span8 { background-color: #fdbf6f; }
-
-.span9 {background-color: #cab2d6; }
-
-.anon0 { border-bottom: 3px solid #b3e2cd; }
-
-.anon1 { border-bottom: 3px solid #fdcdac; }
-
-.anon2 { border-bottom: 3px solid #cbd5e8; }
-
-.anon3 { border-bottom: 3px solid #f4cae4; }
-
-.anon4 { border-bottom: 3px solid #e6f5c9; }
-
-.anon5 { border-bottom: 3px solid #e3daa6; }
-
-.anon6 { border-bottom: 3px solid #b2df8a; }
-
-.anon7 { border-bottom: 3px solid #fb9a99; }
-
-.anon8 { border-bottom: 3px solid #fdbf6f; }
-
-.anon9 { border-bottom: 3px solid #cab2d6; }
+.anon { border-bottom: 3px solid; }
 
 
 .article {
@@ -242,53 +206,8 @@ body {
     position: static;
 }
 
-.question0 {
-    border-bottom:10px solid #b3e2cd;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question1 {
-    border-bottom:10px solid #fdcdac;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question2 {
-    border-bottom:10px solid #cbd5e8;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question3 {
-    border-bottom:10px solid #f4cae4;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question4 {
-    border-bottom:10px solid #e6f5c9;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question5 {
-    border-bottom:10px solid #e3daa6;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question6 {
-    border-bottom:10px solid #b2df8a;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question7 {
-    border-bottom:10px solid #fb9a99;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question8 {
-    border-bottom:10px solid #fdbf6f;
-    padding-bottom:5px;
-    font-weight:700;   
-} 
-.question9 {
-    border-bottom:10px solid #cab2d6;
+.question {
+    border-bottom:10px solid;
     padding-bottom:5px;
     font-weight:700;   
 } 
@@ -296,6 +215,8 @@ body {
 .delete-highlight-btn {
     position: absolute;
     z-index: 100;
+    margin: 5px 5px 5px 5px;
+    padding: 3px;
 }
 
 .source-info {
