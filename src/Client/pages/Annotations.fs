@@ -41,7 +41,7 @@ type ExternalMsg =
 let loadArticles (user: UserData, articleType: ArticleAssignment) =
     promise {
         let url = ServerUrls.APIUrls.Annotations
-        let body = toJson user
+        let body = toJson (user, articleType)
         let props =
             [ RequestProperties.Method HttpMethod.POST
               Fetch.requestHeaders [

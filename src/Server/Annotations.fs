@@ -8,13 +8,13 @@ open ServerCode.Domain
 open ServerTypes
 
 /// Handle the POST on /api/annotations
-let getAnnotations (getArticleFromDB : UserData -> Task<ArticleList>) (token : UserRights) : HttpHandler =
+let getAnnotations (getArticlesFromDB : UserData -> Domain.ArticleAssignment -> Task<ArticleList>) (token : UserRights) : HttpHandler =
      fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
             printfn "Trying to get annotations"
-            let! userData = ctx.BindJsonAsync<Domain.UserData>()
-            let! annotations = getArticleFromDB userData
-            return! ctx.WriteJsonAsync annotations
+            let! userData, articleType = ctx.BindJsonAsync<Domain.UserData * Domain.ArticleAssignment>()
+            let! articles = getArticlesFromDB userData articleType
+            return! ctx.WriteJsonAsync articles
         }
 
 let private invalidAnnotations =

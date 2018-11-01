@@ -264,9 +264,15 @@ let loadNextBatchOfArticles connectionString userName articlesToShow =
 
     Array.append articlesUncomplete articlesNew
 
-let loadArticlesFromSQLDatabase connectionString userData = task {
+// Randomize the order of articles as they are shown to the user
+let shuffle articles =
+    let rnd = new System.Random()
+    articles
+    |> Array.sortBy (fun _ -> rnd.Next())
+
+let loadArticlesFromSQLDatabase connectionString userData articleType = task {
     // TODO: Find articles that should be displayed to the specific user
-    let articlesToShow = 30
+    let articlesToShow = 15
 
     match userData.Proficiency with
     | Training //->
@@ -277,56 +283,48 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
         // return results
         
     | User ->
-        // 1. Select articles assigned to user with unfinished annotations
-        let articlesUnfinished =
+        match articleType with
+        | Unfinished ->
+            // Select articles previously assigned to user with unfinished annotations
             selectUnfinishedArticles connectionString userData.UserName
+            |> shuffle
+            |> return
 
-        // 2. Load articles that need to be completed and new articles
-        let articlesOther = loadNextBatchOfArticles connectionString userData.UserName (articlesToShow - articlesUnfinished.Length)
+        | Standard ->
+            // Load articles that need to be completed and new articles
+            loadNextBatchOfArticles connectionString userData.UserName articlesToShow
+            |> shuffle
+            |> return
 
-        // -- randomize the order of articles as they are shown to the user
-        let allArticles =
-            let rnd = new System.Random()
-            [| articlesUnfinished; 
-               articlesOther 
-               |]
-            |> Array.concat
-            //|> Array.sortBy (fun _ -> rnd.Next())
+        | ConflictingAnnotation | ThirdExpertAnnotation -> return [||]
 
-        return allArticles
     
     | Expert ->
-        // 1. Select articles previously assigned to user with unfinished annotations
-        let articlesUnfinished =
-            selectUnfinishedArticles connectionString userData.UserName
-        printfn "%d" articlesUnfinished.Length
+        match articleType with
+        | Unfinished ->
+            // Select articles previously assigned to user with unfinished annotations
+            selectUnfinishedArticles connectionString userData.UserName articlesToShow
+            |> shuffle
+            |> return
 
-        // 2. Select articles with conflicting annotations
-        let articlesConflicts = selectConflictingArticles userData.UserName connectionString
-        printfn "%d" articlesConflicts.Length
+        | ConflictingAnnotation ->
+            // Select articles with conflicting annotations
+            selectConflictingArticles userData.UserName connectionString articlesToShow
+            |> shuffle
+            |> return
 
-        // 3. Select articles to add third annotation
-        let articlesThirdAnnotation = selectFinishedArticles userData.UserName connectionString
-        printfn "%d" articlesThirdAnnotation.Length
+        | ThirdExpertAnnotation ->
+            // Select articles to add third annotation
+            selectFinishedArticles userData.UserName connectionString articlesToShow
+            |> shuffle
+            |> return
 
-        // 4. Select articles like for normal users
-        let articlesOther = 
-            loadNextBatchOfArticles connectionString userData.UserName 
-                (articlesToShow - articlesUnfinished.Length - articlesConflicts.Length)// - articlesThirdAnnotation.Length)
-        printfn "%d" articlesOther.Length
 
-        let allArticles =
-            let rnd = new System.Random()
-            [| articlesUnfinished; 
-               articlesConflicts;
-               //articlesThirdAnnotation;
-               articlesOther 
-               |]
-            |> Array.concat
-            |> Array.take 30
-            //|> Array.sortBy (fun _ -> rnd.Next())
-
-        return allArticles
+        | Standard ->
+            // Load articles that need to be completed and new articles
+            loadNextBatchOfArticles connectionString userData.UserName articlesToShow
+            |> shuffle
+            |> return
 
 }
 
@@ -359,9 +357,10 @@ let markAssignedArticles connectionString (articles: Article []) (userData : Dom
 
 
 /// Load list of articles from the database
-let getArticlesFromDB connectionString (userData : Domain.UserData) = task {
+let getArticlesFromDB connectionString (userData : Domain.UserData) (articleType: Domain.ArticleAssignment) = task {
 
-    let! articles = loadArticlesFromSQLDatabase connectionString userData
+    // TODO
+    let! articles = loadArticlesFromSQLDatabase connectionString userData articleType
     let! annotated = checkAnnotationsExist connectionString userData.UserName articles
     // Mark articles as assigned to the current user
     markAssignedArticles connectionString articles userData
