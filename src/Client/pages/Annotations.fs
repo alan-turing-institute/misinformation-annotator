@@ -15,27 +15,30 @@ open Style
 open System
 
 type Model =
-  { Annotations : ArticleList
+  { ArticlesToAnnotate : ArticleList
     Token : string
     UserInfo : UserData
     ResetTime : DateTime option
     ErrorMsg : string option
-    SelectedArticle : Article option }
+    SelectedArticle : Article option
+    Finished : bool
+    Loading : bool }
 
 /// The different messages processed when interacting with the wish list
 type Msg =
     | LoadForUser of string
-    | FetchedAnnotations of ArticleList
+    | FetchedArticles of ArticleList
     | FetchedResetTime of DateTime
     | FetchError of exn
     | SelectArticle of Article
+    | LoadArticleBatch of ArticleAssignment
 
 type ExternalMsg =
     | ViewArticle of Article
     | NoOp
     | CacheAllArticles of ArticleList
 
-let loadAnnotations (user: UserData) =
+let loadArticles (user: UserData, articleType: ArticleAssignment) =
     promise {
         let url = ServerUrls.APIUrls.Annotations
         let body = toJson user
@@ -49,9 +52,9 @@ let loadAnnotations (user: UserData) =
         return! Fetch.fetchAs<ArticleList> url props
     }
 
-let loadAnnotationsCmd user =
+let loadArticlesCmd user articleType =
     Browser.console.log("Requesting articles")
-    Cmd.ofPromise loadAnnotations user FetchedAnnotations FetchError
+    Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
 
 let getResetTime token =
     promise {
@@ -67,10 +70,16 @@ let getResetTime token =
 let loadResetTimeCmd token =
     Cmd.ofPromise getResetTime token FetchedResetTime FetchError
 
+let checkIfFinished model = 
+    { model with 
+        Finished = 
+            (true, model.ArticlesToAnnotate.Articles)
+            ||> List.fold (fun state (_, annotated) -> state && annotated)
+    }
 
 let init (user:UserData, articleList : ArticleList option) =
     Browser.console.log("Initializing list of annotations")
-    { Annotations = 
+    { ArticlesToAnnotate = 
         match articleList with
         | None -> ArticleList.New user.UserName
         | Some a -> a
@@ -79,34 +88,39 @@ let init (user:UserData, articleList : ArticleList option) =
       ResetTime = None
       ErrorMsg = None
       SelectedArticle = None
+      Finished = false
+      Loading = true
       },
       match articleList with 
-      | None -> loadAnnotationsCmd user
+      | None -> loadArticlesCmd user Unfinished
       | Some _ -> Cmd.none
 
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
     | LoadForUser user ->
-        model, Cmd.none, NoOp
+        model |> checkIfFinished, Cmd.none, NoOp
 
-    | FetchedAnnotations annotations ->
+    | FetchedArticles annotations ->
         Browser.console.log("Fetched annotations - adapting model")
         Browser.console.log(annotations)
         let annotations = 
             { annotations with Articles = annotations.Articles  }
-        { model with Annotations = annotations }, Cmd.none, CacheAllArticles annotations
+        { model with ArticlesToAnnotate = annotations; Loading = false } |> checkIfFinished, Cmd.none, CacheAllArticles annotations
 
     | FetchedResetTime datetime ->
-        { model with ResetTime = Some datetime }, Cmd.none, NoOp
+        { model with ResetTime = Some datetime } |> checkIfFinished, Cmd.none, NoOp
 
     | FetchError e ->
         Browser.console.log(e.Message)
         Browser.console.log(e)
         Browser.console.log(model)
-        { model with ErrorMsg = Some e.Message }, Cmd.none, NoOp
+        { model with ErrorMsg = Some e.Message } |> checkIfFinished, Cmd.none, NoOp
        
     | SelectArticle a ->
-        { model with SelectedArticle = Some a }, Cmd.none, ViewArticle a
+        { model with SelectedArticle = Some a } |> checkIfFinished, Cmd.none, ViewArticle a
+
+    | LoadArticleBatch articleType ->
+        model |> checkIfFinished, loadArticlesCmd model.UserInfo articleType, NoOp
 
 
 let viewArticleComponent article annotated (dispatch: Msg -> unit) =
@@ -127,30 +141,61 @@ let view (model:Model) (dispatch: Msg -> unit) =
     div [] [
         h4 [] [
             let time = model.ResetTime |> Option.map (fun t -> " - Last database reset at " + t.ToString("yyyy-MM-dd HH:mm") + "UTC") |> Option.defaultValue ""
-            yield str (sprintf "Annotations for %s%s" model.Annotations.UserName time) ]
+            yield str (sprintf "Annotations for %s%s" model.ArticlesToAnnotate.UserName time) ]
 
-        // div [] [
-        //     match model.UserInfo.Proficiency with
-        //     | Expert ->
-        //        yield button [ ClassName "button btn-info" ] [ str "Show all articles" ]
-        //        yield button [ ClassName "button btn-info" ] [ str "Show articles with conflicting annotations" ]
-        //        yield button [ ClassName "button btn-info" ] [ str "Show articles with two standard annotations" ]
-        //     | User | Training -> ()
-        // ]
+        (if model.Loading then
+            h5 [] [ str "Loading articles..."]
+         else
+            // check if there are any unfinished articles or if all work has been finished
+            (if model.ArticlesToAnnotate.Articles.Length = 0 || model.Finished then
+                // load new articles to annotate - different options based on user level
+                div [] [
+                    yield h5 [] [ str "Load articles to annotate"] 
+                  
+                    match model.UserInfo.Proficiency with
+                    | Expert ->
+                       yield 
+                         button 
+                           [ ClassName "btn btn-light"
+                             OnClick (fun _ -> dispatch (LoadArticleBatch ConflictingAnnotation))] 
+                           [ str "Load articles with two conflicting annotations" ]
+                       yield 
+                         button 
+                           [ ClassName "btn btn-light"
+                             OnClick (fun _ -> dispatch (LoadArticleBatch ThirdExpertAnnotation))]
+                           [ str "Load articles with two agreeing annotations" ]
+                       yield 
+                         button 
+                           [ ClassName "btn btn-light"
+                             OnClick (fun _ -> dispatch (LoadArticleBatch Standard))]
+                           [ str "Load new articles to annotate" ]
 
-        table [ClassName "table table-striped table-hover"] [
-            thead [] [
-                    tr [] [
-                        th [] [str "Title"]
-                        th [] [str ""]
+                    | User | Training -> 
+                        yield
+                          button 
+                            [ ClassName "btn btn-light"
+                              OnClick (fun _ -> dispatch (LoadArticleBatch Standard)) ] [ str "Load new articles to annotate"]
+
                 ]
-            ]
-            tbody [] (
-                model.Annotations.Articles
-                |> List.map(fun (article, annotated) ->
-                    viewArticleComponent article annotated dispatch
-                    )
-                //
-            )
-        ]
+             else 
+                // Existing articles to annotate
+                div [] [
+                    table [ClassName "table table-striped table-hover"] [
+                        thead [] [
+                                tr [] [
+                                    th [] [str "Title"]
+                                    th [] [str ""]
+                            ]
+                        ]
+                        tbody [] (
+                            model.ArticlesToAnnotate.Articles
+                            |> List.map(fun (article, annotated) ->
+                                viewArticleComponent article annotated dispatch
+                                )
+                            //
+                        )
+                    ]
+                ]     
+            )   
+        )
     ]

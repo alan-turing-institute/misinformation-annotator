@@ -296,7 +296,7 @@ let loadArticlesFromSQLDatabase connectionString userData = task {
         return allArticles
     
     | Expert ->
-        // 1. Select articles assigned to user with unfinished annotations
+        // 1. Select articles previously assigned to user with unfinished annotations
         let articlesUnfinished =
             selectUnfinishedArticles connectionString userData.UserName
         printfn "%d" articlesUnfinished.Length
