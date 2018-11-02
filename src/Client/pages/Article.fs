@@ -2,6 +2,8 @@ module Client.Article
 
 open Fable.Core
 open Fable.Import
+open Fable.Import.Browser
+open Fable.Import.React
 open Fable.PowerPack
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
@@ -13,7 +15,7 @@ open ServerCode
 open ServerCode.Domain
 open Style
 open System
-open Fable.Import
+
 
 type HighlightMode =
     | SourceText of SourceId
@@ -498,37 +500,41 @@ let view (model:Model) (dispatch: Msg -> unit) =
           yield h4 [] [ str (model.SourceWebsite)]
           yield 
             div [ ClassName "article" ] [
-              div [ ClassName "article-highlights container col-sm-12" ] 
-                [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                    yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) ]
-              div [ ClassName "article-text container col-sm-12" ] 
-                [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                    yield p  
-                      [ OnMouseUp (fun e -> 
-                          match (getSelection model e) with
-                          | NewHighlight(id, selection) -> 
-                             dispatch (TextSelected (id,selection))
-                          | ClickHighlight(id, selectionType, selection) -> 
-                             dispatch (ShowDeleteButton (id, selectionType, selection))
-                          | NoSelection -> () )
-                        Id (string idx) ]  
-                      [ match model.ShowDeleteSelection with 
-                        | None -> 
-                          yield str paragraph
-                        | Some (id, selectionType, selection) ->
-                          if selection.EndParagraphIdx <> idx then
-                            yield str paragraph 
-                          else
-                            let part1 = paragraph.[..selection.EndIdx-1]
-                            let part2 = paragraph.[selection.EndIdx..]
-                            yield span [] [ str part1 ]
-                            yield button [ 
-                                   ClassName "btn btn-danger delete-highlight-btn" 
-                                   OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
-                                   [ str ("╳ Source " + string (id + 1)) ]
-                            yield span [] [ str part2 ]
-                       ] 
+              div [ ClassName "article-highlights container col-sm-12"; HTMLAttr.Id "article-highlights" ] 
+                [
+                    (Browser.document.getElementById("article-highlights").innerHTML <- model.Text.[0]) |> ignore
+                    //ah.innerHTML <- model.Text.[0]
                 ]
+                // [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
+                //     yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) ]
+              div [ ClassName "article-text container col-sm-12" ] []
+                // [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
+                //     yield p  
+                //       [ OnMouseUp (fun e -> 
+                //           match (getSelection model e) with
+                //           | NewHighlight(id, selection) -> 
+                //              dispatch (TextSelected (id,selection))
+                //           | ClickHighlight(id, selectionType, selection) -> 
+                //              dispatch (ShowDeleteButton (id, selectionType, selection))
+                //           | NoSelection -> () )
+                //         Id (string idx) ]  
+                //       [ match model.ShowDeleteSelection with 
+                //         | None -> 
+                //           yield str paragraph
+                //         | Some (id, selectionType, selection) ->
+                //           if selection.EndParagraphIdx <> idx then
+                //             yield str paragraph 
+                //           else
+                //             let part1 = paragraph.[..selection.EndIdx-1]
+                //             let part2 = paragraph.[selection.EndIdx..]
+                //             yield span [] [ str part1 ]
+                //             yield button [ 
+                //                    ClassName "btn btn-danger delete-highlight-btn" 
+                //                    OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
+                //                    [ str ("╳ Source " + string (id + 1)) ]
+                //             yield span [] [ str part2 ]
+                //        ] 
+                // ]
             ]
           yield hr []
           yield br [] 

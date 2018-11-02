@@ -31,7 +31,7 @@ let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) in
           AssignmentType = assignmentType
           Text = 
             (if includeContent then 
-               Some (ofJson<string[]>(rdr.GetString(3))) 
+               Some [| rdr.GetString(3) |] 
              else None)
                  } |]    
 
@@ -40,7 +40,7 @@ let selectArticle articleId sqlConn assignmentType includeText =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
   conn.Open()
 
-  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v2] WHERE [article_url] = @ArticleId;" 
+  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v3] WHERE [article_url] = @ArticleId;" 
   use cmd = new SqlCommand(command, conn)
   cmd.Parameters.AddWithValue("@ArticleId", articleId) |> ignore
 
@@ -125,8 +125,8 @@ WITH unfinished_articles AS (
     FROM [annotations] 
     WHERE user_id =@UserId AND annotation IS NULL
 )
-SELECT articles_v2.article_url, title, site_name, plain_content FROM [articles_v2] 
-RIGHT JOIN unfinished_articles ON articles_v2.article_url = unfinished_articles.article_url"
+SELECT articles_v3.article_url, title, site_name, plain_content FROM [articles_v3] 
+INNER JOIN unfinished_articles ON articles_v3.article_url = unfinished_articles.article_url"
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
@@ -154,9 +154,9 @@ WHERE user_id <> @UserId
      (SELECT * FROM unfinished_articles 
       WHERE unfinished_articles.article_url = annotations.article_url)
 )
-SELECT articles_v2.article_url, title, site_name, plain_content 
-FROM [articles_v2] RIGHT JOIN to_finish 
-ON to_finish.article_url = articles_v2.article_url"
+SELECT articles_v3.article_url, title, site_name, plain_content 
+FROM [articles_v3] RIGHT JOIN to_finish 
+ON to_finish.article_url = articles_v3.article_url"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
@@ -183,9 +183,9 @@ WITH selected_articles AS (
     )
     ORDER BY batch_id DESC, newid() 
 )
-SELECT TOP (@ArticleCount) articles_v2.article_url, title, site_name, plain_content 
-FROM [articles_v2] RIGHT JOIN selected_articles 
-ON articles_v2.article_url = selected_articles.article_url
+SELECT TOP (@ArticleCount) articles_v3.article_url, title, site_name, plain_content 
+FROM [articles_v3] RIGHT JOIN selected_articles 
+ON articles_v3.article_url = selected_articles.article_url
 "    
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
@@ -210,9 +210,9 @@ WITH conflicts AS (
         HAVING COUNT(distinct num_sources) = 2
     ) 
 )
-SELECT TOP @Count articles_v2.article_url, title, site_name, plain_content 
-FROM [articles_v2] RIGHT JOIN conflicts 
-ON articles_v2.article_url = conflicts.article_url"  
+SELECT TOP @Count articles_v3.article_url, title, site_name, plain_content 
+FROM [articles_v3] RIGHT JOIN conflicts 
+ON articles_v3.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
@@ -238,9 +238,9 @@ WITH conflicts AS (
         HAVING COUNT(*) = 2
     ) 
 )
-SELECT TOP @Count articles_v2.article_url, title, site_name, plain_content 
-FROM [articles_v2] RIGHT JOIN conflicts 
-ON articles_v2.article_url = conflicts.article_url"  
+SELECT TOP @Count articles_v3.article_url, title, site_name, plain_content 
+FROM [articles_v3] RIGHT JOIN conflicts 
+ON articles_v3.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
