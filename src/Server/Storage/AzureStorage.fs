@@ -195,7 +195,7 @@ ON articles_v2.article_url = selected_articles.article_url
     conn.Close()
     result
 
-let selectConflictingArticles userName connectionString =
+let selectConflictingArticles userName connectionString maxCount =
     // Select all articles that have two annotations with conflicting number of sources identified
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
@@ -210,19 +210,20 @@ WITH conflicts AS (
         HAVING COUNT(distinct num_sources) = 2
     ) 
 )
-SELECT articles_v2.article_url, title, site_name, plain_content 
+SELECT TOP @Count articles_v2.article_url, title, site_name, plain_content 
 FROM [articles_v2] RIGHT JOIN conflicts 
 ON articles_v2.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
+    cmd.Parameters.AddWithValue("@Count", maxCount) |> ignore
 
     let rdr = cmd.ExecuteReader()
     let result = parseArticleData rdr ConflictingAnnotation false
     conn.Close()
     result
 
-let selectFinishedArticles userName connectionString =
+let selectFinishedArticles userName connectionString maxCount =
     // Select all articles that have two annotations by normal users
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
@@ -237,12 +238,13 @@ WITH conflicts AS (
         HAVING COUNT(*) = 2
     ) 
 )
-SELECT articles_v2.article_url, title, site_name, plain_content 
+SELECT TOP @Count articles_v2.article_url, title, site_name, plain_content 
 FROM [articles_v2] RIGHT JOIN conflicts 
 ON articles_v2.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
+    cmd.Parameters.AddWithValue("@Count", maxCount) |> ignore
 
     let rdr = cmd.ExecuteReader()
     let result = parseArticleData rdr ThirdExpertAnnotation false
@@ -286,15 +288,17 @@ let loadArticlesFromSQLDatabase connectionString userData articleType = task {
         match articleType with
         | Unfinished ->
             // Select articles previously assigned to user with unfinished annotations
-            selectUnfinishedArticles connectionString userData.UserName
-            |> shuffle
-            |> return
+            let articles = 
+                selectUnfinishedArticles connectionString userData.UserName
+                |> shuffle
+            return articles
 
         | Standard ->
             // Load articles that need to be completed and new articles
-            loadNextBatchOfArticles connectionString userData.UserName articlesToShow
-            |> shuffle
-            |> return
+            let articles = 
+                loadNextBatchOfArticles connectionString userData.UserName articlesToShow
+                |> shuffle
+            return articles
 
         | ConflictingAnnotation | ThirdExpertAnnotation -> return [||]
 
@@ -303,28 +307,32 @@ let loadArticlesFromSQLDatabase connectionString userData articleType = task {
         match articleType with
         | Unfinished ->
             // Select articles previously assigned to user with unfinished annotations
-            selectUnfinishedArticles connectionString userData.UserName articlesToShow
-            |> shuffle
-            |> return
+            let articles = 
+                selectUnfinishedArticles connectionString userData.UserName
+                |> shuffle
+            return articles
 
         | ConflictingAnnotation ->
             // Select articles with conflicting annotations
-            selectConflictingArticles userData.UserName connectionString articlesToShow
-            |> shuffle
-            |> return
+            let articles = 
+                selectConflictingArticles userData.UserName connectionString articlesToShow
+                |> shuffle
+            return articles
 
         | ThirdExpertAnnotation ->
             // Select articles to add third annotation
-            selectFinishedArticles userData.UserName connectionString articlesToShow
-            |> shuffle
-            |> return
+            let articles = 
+                selectFinishedArticles userData.UserName connectionString articlesToShow
+                |> shuffle
+            return articles
 
 
         | Standard ->
             // Load articles that need to be completed and new articles
-            loadNextBatchOfArticles connectionString userData.UserName articlesToShow
-            |> shuffle
-            |> return
+            let articles = 
+                loadNextBatchOfArticles connectionString userData.UserName articlesToShow
+                |> shuffle
+            return articles
 
 }
 
@@ -359,7 +367,6 @@ let markAssignedArticles connectionString (articles: Article []) (userData : Dom
 /// Load list of articles from the database
 let getArticlesFromDB connectionString (userData : Domain.UserData) (articleType: Domain.ArticleAssignment) = task {
 
-    // TODO
     let! articles = loadArticlesFromSQLDatabase connectionString userData articleType
     let! annotated = checkAnnotationsExist connectionString userData.UserName articles
     // Mark articles as assigned to the current user
