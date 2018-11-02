@@ -144,8 +144,13 @@ let view (model:Model) (dispatch: Msg -> unit) =
             yield str (sprintf "Annotations for %s%s" model.ArticlesToAnnotate.UserName time) ]
 
         (if model.Loading then
-            img [ HTMLAttr.Src "Images/Double Ring-1.7s-200px.gif" ] 
+           div [] [
+             div [ ClassName "body" ] [
+                 img [ HTMLAttr.Src "Images/Double Ring-1.7s-200px.gif" ] 
+             ]
 //            h5 [] [ str "Loading articles..."]
+             div [ ClassName "bottom" ] [ a [ HTMLAttr.Href "https://loading.io/spinner/double-rignt/"] [ str "Spinner by loading.io"] ]
+           ]
          else
             // check if there are any unfinished articles or if all work has been finished
             (if model.ArticlesToAnnotate.Articles.Length = 0 || model.Finished then
