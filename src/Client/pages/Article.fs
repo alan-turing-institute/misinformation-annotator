@@ -500,10 +500,10 @@ let view (model:Model) (dispatch: Msg -> unit) =
           yield h4 [] [ str (model.SourceWebsite)]
           yield 
             div [ ClassName "article" ] [
-              div [ ClassName "article-highlights container col-sm-12"; HTMLAttr.Id "article-highlights" ] 
+              div [ ClassName "article-highlights container col-sm-12"; 
+                    //HTMLAttr.Custom("dangerouslySetInnerHTML", JsInterop.createObj ["__html", box model.Text.[0] ])
+                     ] 
                 [
-                    (Browser.document.getElementById("article-highlights").innerHTML <- model.Text.[0]) |> ignore
-                    //ah.innerHTML <- model.Text.[0]
                 ]
                 // [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
                 //     yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) ]

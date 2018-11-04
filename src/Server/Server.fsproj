@@ -14,6 +14,8 @@
     <Compile Include="FableJson.fs" />
     <Compile Include="Article.fs" />
     <Compile Include="Annotations.fs" />
+    <Compile Include="HtmlCharRefs.fs" />
+    <Compile Include="HtmlParser.fs" />
     <Compile Include="Storage/Defaults.fs" />
     <Compile Include="Storage/FileSystem.fs" />
     <Compile Include="Storage/AzureStorage.fs" />
