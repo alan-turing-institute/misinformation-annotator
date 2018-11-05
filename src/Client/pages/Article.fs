@@ -199,14 +199,6 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
             Some (source.SourceID, activeSelections |> List.head)
         else None)
 
-// [<Emit("window.getSelection()")>]
-// let jsGetSelection () : obj = jsNative    
-
-[<Emit("$0.toString()")>]
-let jsExtractText (selection: obj) : string = jsNative
-
-[<Emit("window.getSelection().removeAllRanges()")>]
-let jsRemoveSelection() = jsNative
 
 type SelectionResult = 
     | NoSelection
@@ -243,9 +235,9 @@ let getSelection (model: Model) e : SelectionResult =
                EndParagraphIdx = endP
                EndParagraphId = endParagraphId
                EndIdx = endI
-               Text = jsExtractText(rawOutput)})
+               Text = rawOutput.toString() })
 
-            jsRemoveSelection()
+            window.getSelection().removeAllRanges()
             result |> NewHighlight
     | "Caret" -> 
         let paragraph = 
