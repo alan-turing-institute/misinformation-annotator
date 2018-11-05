@@ -24,6 +24,8 @@ type HighlightMode =
 
 type HighlightType = | SourceHighlight | AnonymityReasonHighlight
 
+type ArticlePageElementType = BaseText | HighlightedText
+
 type Model = {
     StartedEditing: System.DateTime
     User: UserData
@@ -246,8 +248,10 @@ let getSelection (model: Model) e : SelectionResult =
             jsRemoveSelection()
             result |> NewHighlight
     | "Caret" -> 
-        let paragraph = rawOutput?anchorNode?parentElement?id |> unbox<int>
-        let position = rawOutput?anchorOffset |> unbox<int>
+        let paragraph = 
+            let elementId = rawOutput.anchorNode.parentElement.id 
+            model.Text |> Array.findIndex (fun el -> el.Id = elementId)
+        let position = rawOutput.anchorOffset |> int
 
         let clickedSelection = 
             model.SourceInfo 
@@ -483,13 +487,13 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
             str part.Text
         | None -> str part.Text)    
 
-let viewArticleElement idx (element: ArticleElement) model dispatch =
+let viewArticleElement idx (element: ArticleElement) (elementType : ArticlePageElementType) model dispatch =
 
     let rec viewHtmlElements htmlElements : ReactElement list =
         match htmlElements with 
         | he :: hes -> 
             let attrs : IHTMLProp list = 
-                if hes = [] then 
+                if hes = [] && elementType = BaseText then 
                     // leaf element with contents
                     [ Id element.Id
                       OnMouseUp (fun e -> 
@@ -509,22 +513,29 @@ let viewArticleElement idx (element: ArticleElement) model dispatch =
                 [ p (List.append attrs [ ClassName "list-item" ]) (viewHtmlElements hes) ]
         | [] -> 
             // put in the actual content
-          [ match model.ShowDeleteSelection with 
-            | None -> 
-              yield str element.Content
-            | Some (id, selectionType, selection) ->
-              if selection.EndParagraphIdx <> idx then
-                yield str element.Content 
-              else
-                let part1 = element.Content.[..selection.EndIdx-1]
-                let part2 = element.Content.[selection.EndIdx..]
-                yield span [] [ str part1 ]
-                yield button [ 
-                       ClassName "btn btn-danger delete-highlight-btn" 
-                       OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
-                       [ str ("╳ Source " + string (id + 1)) ]
-                yield span [] [ str part2 ]
-           ]
+          match elementType with
+          | BaseText ->
+              [ 
+                match model.ShowDeleteSelection with 
+                | None -> 
+                  yield str element.Content
+                | Some (id, selectionType, selection) ->
+                  if selection.EndParagraphIdx <> idx then
+                    yield str element.Content 
+                  else
+                    Browser.console.log("inserting delete button, idx = " + string idx)
+                    let part1 = element.Content.[..selection.EndIdx-1]
+                    let part2 = element.Content.[selection.EndIdx..]
+                    yield span [] [ str part1 ]
+                    yield button [ 
+                           ClassName "btn btn-danger delete-highlight-btn" 
+                           OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
+                           [ str ("╳ Source " + string (id + 1)) ]
+                    yield span [] [ str part2 ]
+              ]
+
+          | HighlightedText -> 
+              viewParagraphHighlights model idx element.Content dispatch
 
     // Where to put in the Id?
     viewHtmlElements (element.HtmlElement |> List.rev)
@@ -553,15 +564,15 @@ let view (model:Model) (dispatch: Msg -> unit) =
                 //     (Browser.document.getElementById("article-highlights").innerHTML <- model.Text.[0]) |> ignore
                 //     //ah.innerHTML <- model.Text.[0]
                 // ]
-                [
-                    // for element in model.Text do 
-                    //     yield! (viewArticleElementHighlights element model dispatch)
-                ]
+                ( model.Text 
+                  |> Array.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
+                  |> List.concat
+                )
                 // [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
                 //      yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) ]
               div [ ClassName "article-text container col-sm-12" ] 
                 ( model.Text 
-                  |> Array.mapi (fun idx element -> viewArticleElement idx element model dispatch)
+                  |> Array.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
                   |> List.concat
                 )
             ]
