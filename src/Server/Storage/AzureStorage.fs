@@ -22,8 +22,64 @@ type AzureConnection = {
     SqlConnection : string 
 }
 
+// ==============================================================================================
+// Html parsing code to format articles
+
+let getElementId attributes =
+    attributes 
+    |> List.choose (fun (HtmlAttribute(name, value)) -> 
+        if name = "data-node-index" then Some value else None)
+    |> List.exactlyOne
+
+let innerText el = 
+  String.concat "" [ for e in el -> e.ToString() ]
+
+// Supported html elements: div, p, blockquote, ul, ol
+let rec parseElements (elements: HtmlNode list) (elementTypes: ArticleHtmlElement list) : (ArticleElement list) =
+  [ for el in elements do
+      match el with 
+
+      | HtmlElement("div", _, contents) ->
+          yield! (
+              contents
+              |> List.collect (fun x -> parseElements [x] elementTypes))
+
+      | HtmlElement("p", attributes, text) -> 
+          let id = getElementId attributes
+          let text' = text |> innerText
+          yield { 
+            Id = id; 
+            HtmlElement = match elementTypes with | []  -> [Paragraph] | et -> Paragraph::et ; 
+            Content = text' }
+
+      | HtmlElement("blockquote", _, contents) ->
+          yield! (
+              contents 
+              |> List.collect (fun x -> parseElements [x] (Blockquote::elementTypes)))
+
+      | HtmlElement("ul", attributes, items)
+      | HtmlElement("ol", attributes, items) ->
+          for it in items do 
+            match it with 
+            | HtmlElement("li", attributes', text) ->
+               yield
+                { Id = getElementId attributes'
+                  HtmlElement = ListItem ::elementTypes
+                  Content = innerText text}
+            | _ -> 
+                printfn "UNKNOWN LIST ITEM"
+
+      | _ -> () ]
+
 let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) includeContent = 
     [| while rdr.Read() do 
+        let articleContents = rdr.GetString(3)
+        let (HtmlDocument(_, elements)) = HtmlDocument.Parse(articleContents)
+
+        let parsedContents = 
+            parseElements elements []
+            |> Array.ofList
+
         yield { 
           ID = rdr.GetString(0)
           Title = rdr.GetString(1)
@@ -31,10 +87,11 @@ let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) in
           AssignmentType = assignmentType
           Text = 
             (if includeContent then 
-               Some [| rdr.GetString(3) |] 
+               Some parsedContents
              else None)
                  } |]    
 
+// ==============================================================================================
 
 let selectArticle articleId sqlConn assignmentType includeText =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)

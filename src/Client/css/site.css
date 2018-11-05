@@ -293,3 +293,9 @@ overflow-y: scroll;
 .body {
     height: 100%;
 }
+
+.list-item {
+    display: list-item;
+    list-style-type: disc;
+    list-style-position: outside;
+}

@@ -64,6 +64,8 @@ let loadArticleFromDB link =
     let text = 
         contents.[1..]
         |> Array.map (fun line -> line.Replace("<p>", "").Replace("</p>", ""))
+        |> Array.mapi (fun i line -> { HtmlElement = [Paragraph]; Id = string i; Content = line})
+    
     { Title = heading; Text = Some text; ID = link; SourceWebsite = "Just testing" ; AssignmentType = Standard }
 
 

@@ -21,9 +21,22 @@ type UserProficiency =
 type UserData =
   { UserName : string
     Proficiency : UserProficiency
-    Token    : JWT }
+    Token    : JWT }    
 
-type ArticleText = string []
+type ArticleHtmlElement = 
+    | Paragraph
+    | Blockquote
+    | ListItem
+
+type ArticleContent = string
+
+type ArticleElement = {
+    HtmlElement : ArticleHtmlElement list // to deal with nested html tags - for example ol inside blockquote
+    Id : string
+    Content : ArticleContent
+} 
+
+type ArticleText = ArticleElement []
 
 type ArticleAssignment =
     | Unfinished
@@ -63,7 +76,9 @@ type AnnotationsResetDetails =
 
 type Selection = {
     StartParagraphIdx: int
+    StartParagraphId: string
     EndParagraphIdx : int
+    EndParagraphId: string
     StartIdx : int  // within parent paragraph
     EndIdx: int     // within parent paragraph
     Text: string
