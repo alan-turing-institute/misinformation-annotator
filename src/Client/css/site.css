@@ -273,16 +273,16 @@ body {
 }
 
 .row-height{
-    height: 100vh;
+    height: 90vh;
 }
 
 .left{
-height: 100%;
+height: 90%;
 overflow-y: scroll;
 }
 
 .right{
-height: 100%;
+height: 90%;
 overflow-y: scroll;
 }
 
