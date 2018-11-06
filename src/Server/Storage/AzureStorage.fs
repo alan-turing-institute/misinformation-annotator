@@ -230,7 +230,7 @@ let selectNewArticles articlesToShow connectionString =
     conn.Open()
     let command = "
 WITH selected_articles AS (
-    SELECT TOP 100 article_url FROM [batch_article]
+    SELECT TOP 10000 article_url FROM [batch_article]
     WHERE
     article_url NOT IN (
             SELECT article_url FROM [annotations]
@@ -239,11 +239,18 @@ WITH selected_articles AS (
     batch_id IN (
             SELECT batch_id FROM [batch] WHERE active = 1
     )
-    ORDER BY batch_id DESC, newid() 
+    ORDER BY batch_id DESC
+),
+sorted_articles_by_site AS (
+    SELECT articles_v3.article_url, title, site_name, plain_content, ROW_NUMBER()
+    over (
+        PARTITION BY [site_name] 
+        order by [id]
+    ) AS row_num 
+    FROM [articles_v3] INNER JOIN selected_articles 
+    ON articles_v3.article_url = selected_articles.article_url
 )
-SELECT TOP (@ArticleCount) articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] INNER JOIN selected_articles 
-ON articles_v3.article_url = selected_articles.article_url
+SELECT TOP (@ArticleCount) article_url, title, site_name, plain_content, row_num FROM sorted_articles_by_site WHERE row_num <= @ArticleCount ORDER BY newid()
 "    
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
