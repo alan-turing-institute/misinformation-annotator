@@ -89,8 +89,11 @@ let init (user:UserData, articleList : ArticleList option) =
       ErrorMsg = None
       SelectedArticle = None
       Finished = false
-      Loading = true
-      },
+      Loading = 
+        match articleList with
+        | None -> true
+        | Some _ -> false
+    } |> checkIfFinished,
       match articleList with 
       | None -> loadArticlesCmd user Unfinished
       | Some _ -> Cmd.none
@@ -120,7 +123,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with SelectedArticle = Some a } |> checkIfFinished, Cmd.none, ViewArticle a
 
     | LoadArticleBatch articleType ->
-        model |> checkIfFinished, loadArticlesCmd model.UserInfo articleType, NoOp
+        { model with Loading = true } |> checkIfFinished, loadArticlesCmd model.UserInfo articleType, NoOp
 
 
 let viewArticleComponent article annotated (dispatch: Msg -> unit) =
@@ -153,55 +156,73 @@ let view (model:Model) (dispatch: Msg -> unit) =
            ]
          else
             // check if there are any unfinished articles or if all work has been finished
-            (if model.ArticlesToAnnotate.Articles.Length = 0 || model.Finished then
-                // load new articles to annotate - different options based on user level
-                div [] [
-                    yield h5 [] [ str "Load articles to annotate"] 
-                  
-                    match model.UserInfo.Proficiency with
-                    | Expert ->
-                       yield 
-                         button 
-                           [ ClassName "btn btn-light"
-                             OnClick (fun _ -> dispatch (LoadArticleBatch ConflictingAnnotation))] 
-                           [ str "Load articles with two conflicting annotations" ]
-                       yield 
-                         button 
-                           [ ClassName "btn btn-light"
-                             OnClick (fun _ -> dispatch (LoadArticleBatch ThirdExpertAnnotation))]
-                           [ str "Load articles with two agreeing annotations" ]
-                       yield 
-                         button 
-                           [ ClassName "btn btn-light"
-                             OnClick (fun _ -> dispatch (LoadArticleBatch Standard))]
-                           [ str "Load new articles to annotate" ]
-
-                    | User | Training -> 
-                        yield
-                          button 
-                            [ ClassName "btn btn-light"
-                              OnClick (fun _ -> dispatch (LoadArticleBatch Standard)) ] [ str "Load new articles to annotate"]
-
-                ]
-             else 
-                // Existing articles to annotate
-                div [] [
-                    table [ClassName "table table-striped table-hover"] [
-                        thead [] [
-                                tr [] [
-                                    th [] [str "Title"]
-                                    th [] [str ""]
+            div [] [
+                ( if model.ArticlesToAnnotate.Articles.Length > 0 then     
+                    // Existing articles to annotate
+                      div [] [
+                        table [ClassName "table table-striped table-hover"] [
+                            thead [] [
+                                    tr [] [
+                                        th [] [str "Title"]
+                                        th [] [str ""]
+                                ]
                             ]
+                            tbody [] (
+                                model.ArticlesToAnnotate.Articles
+                                |> List.map(fun (article, annotated) ->
+                                    viewArticleComponent article annotated dispatch
+                                    )
+                                //
+                            )
                         ]
-                        tbody [] (
-                            model.ArticlesToAnnotate.Articles
-                            |> List.map(fun (article, annotated) ->
-                                viewArticleComponent article annotated dispatch
-                                )
-                            //
-                        )
                     ]
-                ]     
-            )   
+                  else  div [][]
+                );
+
+                (if model.ArticlesToAnnotate.Articles.Length = 0 || model.Finished then
+                    div [] [
+                        yield! [br []; br[]]
+                        yield h5 [] [ 
+                           (if model.ArticlesToAnnotate.Articles.Length = 0 then
+                                str "No articles to display."
+                            else 
+                                str "Congratulations, the current batch is finished!") ] 
+                    ]
+                 else 
+                    div [] [])       
+
+                (if model.ArticlesToAnnotate.Articles.Length = 0 || model.Finished then
+                    // load new articles to annotate - different options based on user level
+                    div [] [
+                     
+                        match model.UserInfo.Proficiency with
+                        | Expert ->
+                           yield 
+                             button 
+                               [ ClassName "btn btn-light"
+                                 OnClick (fun _ -> dispatch (LoadArticleBatch ConflictingAnnotation))] 
+                               [ str "Load articles with two conflicting annotations" ]
+                           yield 
+                             button 
+                               [ ClassName "btn btn-light"
+                                 OnClick (fun _ -> dispatch (LoadArticleBatch ThirdExpertAnnotation))]
+                               [ str "Load articles with two standard annotations" ]
+                           yield 
+                             button 
+                               [ ClassName "btn btn-light"
+                                 OnClick (fun _ -> dispatch (LoadArticleBatch Standard))]
+                               [ str "Load new articles to annotate" ]
+
+                        | User | Training -> 
+                            yield
+                              button 
+                                [ ClassName "btn btn-light"
+                                  OnClick (fun _ -> dispatch (LoadArticleBatch Standard)) ] [ str "Load new articles to annotate"]
+
+                    ]
+                 else div [] []
+                )
+            ]
+               
         )
     ]

@@ -204,12 +204,12 @@ WITH unfinished_articles AS (
     HAVING (COUNT(article_url) = 1)
 ),
 to_finish AS (
-SELECT article_url
-FROM [annotations]
-WHERE user_id <> @UserId 
-    AND EXISTS 
-     (SELECT * FROM unfinished_articles 
-      WHERE unfinished_articles.article_url = annotations.article_url)
+    SELECT article_url
+    FROM [annotations]
+    WHERE user_id <> @UserId 
+        AND EXISTS 
+         (SELECT * FROM unfinished_articles 
+          WHERE unfinished_articles.article_url = annotations.article_url)
 )
 SELECT TOP (@ArticleCount) articles_v3.article_url, title, site_name, plain_content 
 FROM [articles_v3] INNER JOIN to_finish 
@@ -265,10 +265,10 @@ WITH conflicts AS (
         SELECT article_url FROM [annotations]
         WHERE user_id <> @UserId
         GROUP BY article_url
-        HAVING COUNT(distinct num_sources) = 2
+        HAVING COUNT(distinct num_sources) = 2 AND COUNT(*) = 2
     ) 
 )
-SELECT TOP @Count articles_v3.article_url, title, site_name, plain_content 
+SELECT TOP (@Count) articles_v3.article_url, title, site_name, plain_content 
 FROM [articles_v3] INNER JOIN conflicts 
 ON articles_v3.article_url = conflicts.article_url"  
 
@@ -286,19 +286,19 @@ let selectFinishedArticles userName connectionString maxCount =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
     let command = "
-WITH conflicts AS (
+WITH annotated AS (
     SELECT DISTINCT article_url
     FROM [annotations]
     WHERE article_url IN (
         SELECT article_url FROM [annotations]
-        WHERE user_id <> @UserId
+        WHERE user_id <> @UserId AND num_sources IS NOT NULL
         GROUP BY article_url
         HAVING COUNT(*) = 2
     ) 
 )
-SELECT TOP @Count articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] INNER JOIN conflicts 
-ON articles_v3.article_url = conflicts.article_url"  
+SELECT TOP (@Count) articles_v3.article_url, title, site_name, plain_content 
+FROM [articles_v3] INNER JOIN annotated 
+ON articles_v3.article_url = annotated.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
@@ -311,7 +311,7 @@ ON articles_v3.article_url = conflicts.article_url"
 
 let loadNextBatchOfArticles connectionString userName articlesToShow =
     // 1. Select articles that have annotation by only one user
-    let articlesUncomplete =
+    let articlesUncomplete =    
         selectAddAnnotationArticles connectionString userName articlesToShow
 
     // 3. Select the remaining articles from the current batch in the articles database
@@ -332,7 +332,7 @@ let shuffle articles =
 
 let loadArticlesFromSQLDatabase connectionString userData articleType = task {
     // TODO: Find articles that should be displayed to the specific user
-    let articlesToShow = 15
+    let articlesToShow = 20
 
     match userData.Proficiency with
     | Training //->
