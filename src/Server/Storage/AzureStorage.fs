@@ -212,7 +212,7 @@ WHERE user_id <> @UserId
       WHERE unfinished_articles.article_url = annotations.article_url)
 )
 SELECT articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] RIGHT JOIN to_finish 
+FROM [articles_v3] INNER JOIN to_finish 
 ON to_finish.article_url = articles_v3.article_url"
 
     use cmd = new SqlCommand(command, conn)
@@ -241,7 +241,7 @@ WITH selected_articles AS (
     ORDER BY batch_id DESC, newid() 
 )
 SELECT TOP (@ArticleCount) articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] RIGHT JOIN selected_articles 
+FROM [articles_v3] INNER JOIN selected_articles 
 ON articles_v3.article_url = selected_articles.article_url
 "    
     use cmd = new SqlCommand(command, conn)
@@ -268,7 +268,7 @@ WITH conflicts AS (
     ) 
 )
 SELECT TOP @Count articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] RIGHT JOIN conflicts 
+FROM [articles_v3] INNER JOIN conflicts 
 ON articles_v3.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)
@@ -296,7 +296,7 @@ WITH conflicts AS (
     ) 
 )
 SELECT TOP @Count articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] RIGHT JOIN conflicts 
+FROM [articles_v3] INNER JOIN conflicts 
 ON articles_v3.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)

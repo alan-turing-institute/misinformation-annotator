@@ -174,6 +174,7 @@ let update msg model =
         | Article.ExternalMsg.NextArticle id ->
             Browser.console.log("Going to the next article...")
             // mark current article as annotated 
+            // TODO - deal with the last article
             let model' = 
                 { model with 
                    AllArticles = 
@@ -193,21 +194,31 @@ let update msg model =
                     allArticles.Articles
                     |> List.findIndex (fun (a,_) -> a.ID = id)
                     |> fun i -> if i+1 = allArticles.Articles.Length then None else Some(i+1)
-            Browser.console.log(string nextIdx)
 
             // Create next article model
-            let m'', cmd' = Article.init m'.User (model.AllArticles.Value.Articles.[nextIdx.Value] |> fst)
+            match nextIdx with
+            | Some nextIdx' ->
+                let m'', cmd' = Article.init m'.User (model.AllArticles.Value.Articles.[nextIdx'] |> fst)
 
-            { model' with
-                PageModel = ArticleModel m''
-                SelectedArticle = 
-                    nextIdx 
-                    |> Option.map (fun i -> model.AllArticles.Value.Articles.[i] |> fst)
-             }, 
-            Cmd.batch [
-                    Cmd.map ArticleMsg cmd'
-                    Navigation.newUrl (toPath Page.Article) 
-                    ]
+                { model' with
+                    PageModel = ArticleModel m''
+                    SelectedArticle = Some (model.AllArticles.Value.Articles.[nextIdx'] |> fst)
+                 }, 
+                Cmd.batch [
+                        Cmd.map ArticleMsg cmd'
+                        Navigation.newUrl (toPath Page.Article) 
+                        ]
+
+            | None ->    
+                let m, cmd = Annotations.init(model'.User.Value, model.AllArticles)
+                { model' with 
+                    PageModel = AnnotationsModel m },
+                Cmd.batch [
+                    Cmd.map AnnotationsMsg cmd
+                    Navigation.newUrl (toPath Page.Annotations)
+                ]                
+
+
 
     | ArticleMsg msg, _ ->
         model, Cmd.none
