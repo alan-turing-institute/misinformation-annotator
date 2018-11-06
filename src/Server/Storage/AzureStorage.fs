@@ -192,7 +192,7 @@ INNER JOIN unfinished_articles ON articles_v3.article_url = unfinished_articles.
     conn.Close()
     result
 
-let selectAddAnnotationArticles connectionString userName =
+let selectAddAnnotationArticles connectionString userName count =
     // articles that have only one annotation right now
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
@@ -211,12 +211,13 @@ WHERE user_id <> @UserId
      (SELECT * FROM unfinished_articles 
       WHERE unfinished_articles.article_url = annotations.article_url)
 )
-SELECT articles_v3.article_url, title, site_name, plain_content 
+SELECT TOP (@ArticleCount) articles_v3.article_url, title, site_name, plain_content 
 FROM [articles_v3] INNER JOIN to_finish 
 ON to_finish.article_url = articles_v3.article_url"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
+    cmd.Parameters.AddWithValue("@ArticleCount", count) |> ignore    
 
     let rdr = cmd.ExecuteReader()
     let result = parseArticleData rdr Standard false
@@ -311,7 +312,7 @@ ON articles_v3.article_url = conflicts.article_url"
 let loadNextBatchOfArticles connectionString userName articlesToShow =
     // 1. Select articles that have annotation by only one user
     let articlesUncomplete =
-        selectAddAnnotationArticles connectionString userName
+        selectAddAnnotationArticles connectionString userName articlesToShow
 
     // 3. Select the remaining articles from the current batch in the articles database
     let articlesNew =
