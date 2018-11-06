@@ -551,18 +551,14 @@ let view (model:Model) (dispatch: Msg -> unit) =
           yield h4 [] [ str (model.SourceWebsite)]
           yield 
             div [ ClassName "article" ] [
-              div [ ClassName "article-highlights container col-sm-12"; HTMLAttr.Id "article-highlights" ] 
-                // [
-                //     (Browser.document.getElementById("article-highlights").innerHTML <- model.Text.[0]) |> ignore
-                //     //ah.innerHTML <- model.Text.[0]
-                // ]
+              div [ ClassName "article-highlights container col-sm-12" ] 
+                // text with highlights at the bottom
                 ( model.Text 
                   |> Array.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
                   |> List.concat
                 )
-                // [ for idx, paragraph in (Array.zip [|0..model.Text.Length-1|] model.Text) do
-                //      yield p [ ]  (viewParagraphHighlights model idx paragraph dispatch) ]
               div [ ClassName "article-text container col-sm-12" ] 
+                // text without highlights and for highlighting
                 ( model.Text 
                   |> Array.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
                   |> List.concat

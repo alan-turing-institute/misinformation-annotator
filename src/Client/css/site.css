@@ -193,6 +193,7 @@ body {
     top: 0;
     left: 0;
     z-index: -1;
+    color: rgba(0, 0, 0, 0.0);
 }
 
 .article-text {
