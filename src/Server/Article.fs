@@ -17,8 +17,11 @@ let getArticle (loadArticleFromDB : string -> Task<Domain.Article>) (loadArticle
             let! articleAnnotation = loadArticleAnnotationsFromDB article.ID token.UserName
             
             match articleAnnotation with
-            | None -> return! ctx.WriteJsonAsync (fullArticle, None)
-            | Some a -> return! ctx.WriteJsonAsync (fullArticle, Some a)
+            | None -> 
+                return! ctx.WriteJsonAsync (fullArticle, None)
+            | Some a -> 
+                printfn "Managed to get annotations for article: %s" fullArticle.Title
+                return! ctx.WriteJsonAsync (fullArticle, Some a)
             
             //let! article = loadArticleFromDB article.Link
             //return! ctx.WriteJsonAsync fullArticle

@@ -367,7 +367,6 @@ let loadArticlesFromSQLDatabase connectionString userData articleType = task {
         printfn "Pulling training articles"
         let articles = 
             selectTrainingArticles connectionString
-            |> shuffle
         return articles
         
     | User ->
