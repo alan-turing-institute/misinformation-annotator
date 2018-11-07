@@ -213,11 +213,13 @@ let view (model:Model) (dispatch: Msg -> unit) =
                                  OnClick (fun _ -> dispatch (LoadArticleBatch Standard))]
                                [ str "Load new articles to annotate" ]
 
-                        | User | Training -> 
+                        | User -> 
                             yield
                               button 
                                 [ ClassName "btn btn-light"
                                   OnClick (fun _ -> dispatch (LoadArticleBatch Standard)) ] [ str "Load new articles to annotate"]
+                                  
+                        | Training -> ()                              
 
                     ]
                  else div [] []
