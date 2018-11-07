@@ -1,10 +1,16 @@
 module internal ReleaseNotes
 
-let Version = "0.1.8"
+let Version = "0.1.9"
 
 let IsPrerelease = false
 
 let Notes = """
+### 0.1.9 - 2018-11-07
+* Full database integration
+* Preliminary article formatting
+* Fixed issues that came up in user testing
+* Training session setup for all users
+
 ### 0.1.8 - 2018-10-17
 * Preliminary database integration
 
