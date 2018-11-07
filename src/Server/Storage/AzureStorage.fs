@@ -173,6 +173,26 @@ let loadArticlesFromFile connectionString = task {
     return articles        
 }
 
+let selectTrainingArticles connectionString =
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "
+WITH batchid AS (
+    SELECT id FROM [batch] WHERE name LIKE 'Training%' AND active = 1
+),
+selected AS (
+    SELECT article_url FROM [batch_article] 
+    INNER JOIN batchid ON batch_article.batch_id = batchid.id
+)
+SELECT articles_v3.article_url, title, site_name, plain_content FROM [articles_v3] 
+INNER JOIN selected ON articles_v3.article_url = selected.article_url"
+    use cmd = new SqlCommand(command, conn)
+    
+    let rdr = cmd.ExecuteReader()
+    let result = parseArticleData rdr Unfinished false
+    conn.Close()
+    result
+
 let selectUnfinishedArticles connectionString userName =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
@@ -342,12 +362,13 @@ let loadArticlesFromSQLDatabase connectionString userData articleType = task {
     let articlesToShow = 20
 
     match userData.Proficiency with
-    | Training //->
-        // let! results = task {
-        //     let articles = selectNumArticlesPerSite 20 connectionString.SqlConnection
-        //     return articles
-        // }
-        // return results
+    | Training ->
+        // Select a training subset of articles
+        printfn "Pulling training articles"
+        let articles = 
+            selectTrainingArticles connectionString
+            |> shuffle
+        return articles
         
     | User ->
         match articleType with
