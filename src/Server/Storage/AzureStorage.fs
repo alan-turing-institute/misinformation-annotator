@@ -13,10 +13,8 @@ open Microsoft.Extensions.Logging
 open Fable.AST.Fable
 open System.Text.RegularExpressions
 open System.Data.SqlClient
-open FSharp.Data
 open System.Text.RegularExpressions
 open System.Data
-open Server.HtmlElements
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
 
@@ -29,81 +27,11 @@ type AzureConnection = {
 // ==============================================================================================
 // Html parsing code to format articles
 
-let getElementId attributes =
-    attributes 
-    |> List.choose (fun (HtmlAttribute(name, value)) -> 
-        if name = "data-node-index" then Some value else None)
-    |> List.exactlyOne
-
-let innerText el = 
-  String.concat "" [ for e in el -> e.ToString() ]
-
-let rec parseAllElements (elements: HtmlNode list) =
-  [ for element in elements do
-      match element with
-      | HtmlElement(elementName, attributes, contents) ->
-        if translateNameWithContent.ContainsKey elementName then
-            // translate the element and call recursively on content
-            yield! 
-              [ (translateNameWithContent.[elementName] 
-                    [ Id (getElementId attributes) ] 
-                    (parseAllElements contents) ) ]
-        else 
-            // skip the current element and continue with the rest
-            if translateNameWithoutContent.ContainsKey elementName then
-                yield! [ translateNameWithoutContent.[elementName] [] ]
-            else ()
-      | HtmlCData x -> () // ignore
-      | HtmlComment x -> ()  // ignore
-      | HtmlText x -> yield! [ str x ] // return the text
-  ]
-    
-
-// Supported html elements: div, p, blockquote, ul, ol
-let rec parseElements (elements: HtmlNode list) (elementTypes: ArticleHtmlElement list) : (ArticleElement list) =
-  [ for el in elements do
-      match el with 
-
-      | HtmlElement("div", _, contents) ->
-          yield! (
-              contents
-              |> List.collect (fun x -> parseElements [x] elementTypes))
-
-      | HtmlElement("p", attributes, text) -> 
-          let id = getElementId attributes
-          let text' = text |> innerText
-          yield { 
-            Id = id; 
-            HtmlElement = match elementTypes with | []  -> [Paragraph] | et -> Paragraph::et ; 
-            Content = text' }
-
-      | HtmlElement("blockquote", _, contents) ->
-          yield! (
-              contents 
-              |> List.collect (fun x -> parseElements [x] (Blockquote::elementTypes)))
-
-      | HtmlElement("ul", attributes, items)
-      | HtmlElement("ol", attributes, items) ->
-          for it in items do 
-            match it with 
-            | HtmlElement("li", attributes', text) ->
-               yield
-                { Id = getElementId attributes'
-                  HtmlElement = ListItem ::elementTypes
-                  Content = innerText text}
-            | _ -> 
-                printfn "UNKNOWN LIST ITEM"
-
-      | _ -> () ]
-
 let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) includeContent = 
     [| while rdr.Read() do 
         let articleContents = rdr.GetString(3)
-        let (HtmlDocument(_, elements)) = HtmlDocument.Parse(articleContents)
 
-        let parsedContents = 
-            parseElements elements []
-            |> Array.ofList
+        let parsedContents = articleContents
 
         yield { 
           ID = rdr.GetString(0)

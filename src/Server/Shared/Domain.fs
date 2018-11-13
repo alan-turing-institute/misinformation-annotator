@@ -36,7 +36,8 @@ type ArticleElement = {
     Content : ArticleContent
 } 
 
-type ArticleText = ArticleElement []
+type ArticleText = 
+    string
 
 type ArticleAssignment =
     | Unfinished

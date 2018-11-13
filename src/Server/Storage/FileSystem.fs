@@ -61,12 +61,9 @@ let getArticlesFromDB (userData : Domain.UserData) (articleType : Domain.Article
 let loadArticleFromDB link =
     let contents = File.ReadAllLines(link)
     let heading = contents.[0].Replace("<h1>", "").Replace("</h1>","")
-    let text = 
-        contents.[1..]
-        |> Array.map (fun line -> line.Replace("<p>", "").Replace("</p>", ""))
-        |> Array.mapi (fun i line -> { HtmlElement = [Paragraph]; Id = string i; Content = line})
+    let parsedContents = contents.[1..] |> String.concat "\n"
     
-    { Title = heading; Text = Some text; ID = link; SourceWebsite = "Just testing" ; AssignmentType = Standard }
+    { Title = heading; Text = Some parsedContents; ID = link; SourceWebsite = "Just testing" ; AssignmentType = Standard }
 
 
 let loadArticleAnnotationsFromDB articleId userName : ArticleAnnotations option =

@@ -1,7 +1,6 @@
 source https://nuget.org/api/v2
 storage:none
 
-nuget Fable.HtmlConverter
 nuget FSharp.Core 4.5 redirects: force
 nuget Fable.JsonConverter 1.0.8
 nuget Giraffe 1.1

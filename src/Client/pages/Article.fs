@@ -15,6 +15,7 @@ open ServerCode
 open ServerCode.Domain
 open Style
 open System
+open Client.HtmlElements
 
 
 type HighlightMode =
@@ -155,7 +156,7 @@ let init (user:UserData) (article: Article)  =
     { 
       User = user
       Heading = article.Title
-      Text = match article.Text with | Some t -> t | None -> [||]
+      Text = match article.Text with | Some t -> t | None -> ""
       Link = article.ID 
       SourceWebsite = article.SourceWebsite
       MentionsSources = None 
@@ -214,9 +215,9 @@ let getSelection (model: Model) e : SelectionResult =
         | NoHighlight -> NoSelection
         | SourceText(id) | AnonymityText(id) ->
             let startParagraphId = rawOutput.anchorNode.parentElement.id 
-            let startParagraph = model.Text |> Array.findIndex (fun el -> el.Id = startParagraphId)
+            let startParagraph = 0 //model.Text |> Array.findIndex (fun el -> el.Id = startParagraphId)
             let endParagraphId = rawOutput.focusNode.parentElement.id 
-            let endParagraph = model.Text |> Array.findIndex (fun el -> el.Id = endParagraphId)
+            let endParagraph = 0 //model.Text |> Array.findIndex (fun el -> el.Id = endParagraphId)
             let startIdx = rawOutput.anchorOffset |> int
             let endIdx = rawOutput.focusOffset |> int
             let startP, startI, endP, endI =
@@ -242,7 +243,8 @@ let getSelection (model: Model) e : SelectionResult =
     | "Caret" -> 
         let paragraph = 
             let elementId = rawOutput.anchorNode.parentElement.id 
-            model.Text |> Array.findIndex (fun el -> el.Id = elementId)
+            //model.Text |> Array.findIndex (fun el -> el.Id = elementId)
+            0
         let position = rawOutput.anchorOffset |> int
 
         let clickedSelection = 
@@ -479,60 +481,69 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
             str part.Text
         | None -> str part.Text)    
 
-let viewArticleElement idx (element: ArticleElement) (elementType : ArticlePageElementType) model dispatch =
+let viewArticleElement idx (element: ReactElement) (elementType : ArticlePageElementType) model dispatch =
 
-    let rec viewHtmlElements htmlElements : ReactElement list =
-        match htmlElements with 
-        | he :: hes -> 
-            let attrs : IHTMLProp list = 
-                if hes = [] && elementType = BaseText then 
-                    // leaf element with contents
-                    [ Id element.Id
-                      OnMouseUp (fun e -> 
-                          match (getSelection model e) with
-                          | NewHighlight(id, selection) -> 
-                             dispatch (TextSelected (id,selection))
-                          | ClickHighlight(id, selectionType, selection) -> 
-                             dispatch (ShowDeleteButton (id, selectionType, selection))
-                          | NoSelection -> () ) ] 
-                else []
-            match he with
-            | Paragraph -> 
-                [ p attrs (viewHtmlElements hes) ]
-            | Blockquote -> 
-                [ blockquote attrs (viewHtmlElements hes) ]
-            | ListItem -> 
-                [ p (List.append attrs [ ClassName "list-item" ]) (viewHtmlElements hes) ]
-        | [] -> 
-            // put in the actual content
-          match elementType with
-          | BaseText ->
-              [ 
-                match model.ShowDeleteSelection with 
-                | None -> 
-                  yield str element.Content
-                | Some (id, selectionType, selection) ->
-                  if selection.EndParagraphIdx <> idx then
-                    yield str element.Content 
-                  else
-                    Browser.console.log("inserting delete button, idx = " + string idx)
-                    let part1 = element.Content.[..selection.EndIdx-1]
-                    let part2 = element.Content.[selection.EndIdx..]
-                    yield span [] [ str part1 ]
-                    yield button [ 
-                           ClassName "btn btn-danger delete-highlight-btn" 
-                           OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
-                           [ str ("╳ Source " + string (id + 1)) ]
-                    yield span [] [ str part2 ]
-              ]
+    // let rec viewHtmlElements (htmlElements : ReactElement list) : ReactElement list =
+    //     match htmlElements with 
+    //     | he :: hes -> 
+    //         let attrs : IHTMLProp list = 
+    //             if hes = [] && elementType = BaseText then 
+    //                 // leaf element with contents
+    //                 [ Id element.Id
+    //                   OnMouseUp (fun e -> 
+    //                       match (getSelection model e) with
+    //                       | NewHighlight(id, selection) -> 
+    //                          dispatch (TextSelected (id,selection))
+    //                       | ClickHighlight(id, selectionType, selection) -> 
+    //                          dispatch (ShowDeleteButton (id, selectionType, selection))
+    //                       | NoSelection -> () ) ] 
+    //             else []
+    //         match he with
+    //         | Paragraph -> 
+    //             [ p attrs (viewHtmlElements hes) ]
+    //         | Blockquote -> 
+    //             [ blockquote attrs (viewHtmlElements hes) ]
+    //         | ListItem -> 
+    //             [ p (List.append attrs [ ClassName "list-item" ]) (viewHtmlElements hes) ]
+    //     | [] -> 
+    //         // put in the actual content
+    //       match elementType with
+    //       | BaseText ->
+    //           [ 
+    //             match model.ShowDeleteSelection with 
+    //             | None -> 
+    //               yield str element.Content
+    //             | Some (id, selectionType, selection) ->
+    //               if selection.EndParagraphIdx <> idx then
+    //                 yield str element.Content 
+    //               else
+    //                 Browser.console.log("inserting delete button, idx = " + string idx)
+    //                 let part1 = element.Content.[..selection.EndIdx-1]
+    //                 let part2 = element.Content.[selection.EndIdx..]
+    //                 yield span [] [ str part1 ]
+    //                 yield button [ 
+    //                        ClassName "btn btn-danger delete-highlight-btn" 
+    //                        OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
+    //                        [ str ("╳ Source " + string (id + 1)) ]
+    //                 yield span [] [ str part2 ]
+    //           ]
 
-          | HighlightedText -> 
-              viewParagraphHighlights model idx element.Content dispatch
+    //       | HighlightedText -> 
+    //           viewParagraphHighlights model idx element.Content dispatch
 
     // Where to put in the Id?
-    viewHtmlElements (element.HtmlElement |> List.rev)
+    //viewHtmlElements element
+    let testDict = [ "h1", h1; "p", p ] |> dict
+    let elementName = "h1"
+    let name = testDict.[elementName]
+    let attr : IHTMLProp list = [ Id "Some ID" ] 
+    let body = [ str "Some contents"]
+    let result = 
+          ( name attr body ) 
 
-let view (model:Model) (dispatch: Msg -> unit) =
+    result
+
+let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
   [
     div [ ClassName "col-md-10"] [
       div [ ClassName "row row-height" ] [
@@ -553,16 +564,16 @@ let view (model:Model) (dispatch: Msg -> unit) =
             div [ ClassName "article" ] [
               div [ ClassName "article-highlights container col-sm-12" ] 
                 // text with highlights at the bottom
-                ( model.Text 
-                  |> Array.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
-                  |> List.concat
-                )
+                // ( model.Text 
+                //   |> List.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
+                  //|> List.concat)
+                  []
               div [ ClassName "article-text container col-sm-12" ] 
                 // text without highlights and for highlighting
-                ( model.Text 
-                  |> Array.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
-                  |> List.concat
-                )
+                // ( model.Text 
+                //   |> List.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
+                  //|> List.concat)
+                  []
             ]
           yield hr []
           yield br [] 
@@ -733,7 +744,8 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         match article.Text with
         | Some t ->         
             Browser.console.log(t.[0])
-            
+            let parsed = parseSite t
+                        
             match annotations with
             | Some a -> 
                 if a.ArticleID = article.ID && a.User.UserName = model.User.UserName then

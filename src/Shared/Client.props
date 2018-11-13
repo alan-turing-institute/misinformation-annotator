@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
   <ItemGroup>
+    <Compile Include="../Client/HtmlElements.fs"  Watch="false" />
     <Compile Include="../Client/ReleaseNotes.fs" Watch="false" />
     <Compile Include="../Client/Pages.fs" Watch="false" />
     <Compile Include="../Client/Style.fs" Watch="false" />
