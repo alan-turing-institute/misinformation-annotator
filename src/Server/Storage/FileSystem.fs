@@ -4,6 +4,7 @@ open System.IO
 open ServerCode
 open ServerCode.Domain
 open Fable.AST.Fable
+open FSharp.Data
 
 /// Get the file name used to store the data for a specific user
 //let getJSONFileName userName = sprintf "./temp/db/%s.json" userName
@@ -61,8 +62,12 @@ let getArticlesFromDB (userData : Domain.UserData) (articleType : Domain.Article
 let loadArticleFromDB link =
     let contents = File.ReadAllLines(link)
     let heading = contents.[0].Replace("<h1>", "").Replace("</h1>","")
-    let parsedContents = contents.[1..] |> String.concat "\n"
-    
+
+    let parsedContents : ArticleText = 
+        contents.[1..] 
+        |> Array.map (fun s -> SimpleHtmlText s)
+        |> List.ofArray
+
     { Title = heading; Text = Some parsedContents; ID = link; SourceWebsite = "Just testing" ; AssignmentType = Standard }
 
 

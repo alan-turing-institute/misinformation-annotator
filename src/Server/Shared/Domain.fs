@@ -36,8 +36,18 @@ type ArticleElement = {
     Content : ArticleContent
 } 
 
+//===========================================================
+
+type IdAttribute = string
+
+type SimpleHtmlNode = 
+    | SimpleHtmlElement of Name : string * Id : IdAttribute * Elements : SimpleHtmlNode list
+    | SimpleHtmlText of Content : string
+
+//===========================================================
+
 type ArticleText = 
-    string
+    SimpleHtmlNode list
 
 type ArticleAssignment =
     | Unfinished
@@ -136,6 +146,7 @@ type FlaggedArticle =
     }
 
 //===========================================================
+
 
 type OpenGraphNS = {
     og: string

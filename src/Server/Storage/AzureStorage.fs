@@ -17,6 +17,7 @@ open System.Text.RegularExpressions
 open System.Data
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
+open FSharp.Data
 
 
 type AzureConnection = {
@@ -27,11 +28,28 @@ type AzureConnection = {
 // ==============================================================================================
 // Html parsing code to format articles
 
+let getElementId attributes =
+    attributes 
+    |> List.choose (fun (HtmlAttribute(name, value)) -> 
+        if name = "data-node-index" then Some value else None)
+    |> List.exactlyOne
+
+let rec transformHtmlFormat (contents: HtmlNode list) =
+    [ for el in contents do
+        match el with 
+        | HtmlElement(name, attributes, elements) ->
+            yield SimpleHtmlElement(name, getElementId attributes, transformHtmlFormat elements)
+        | HtmlCData _ -> ()
+        | HtmlComment _ -> ()
+        | HtmlText x -> yield SimpleHtmlText(x)
+    ]
+
 let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) includeContent = 
     [| while rdr.Read() do 
         let articleContents = rdr.GetString(3)
 
-        let parsedContents = articleContents
+        let (HtmlDocument(_, elements)) = HtmlDocument.Parse(articleContents)
+        let parsedContents : ArticleText = transformHtmlFormat elements
 
         yield { 
           ID = rdr.GetString(0)
