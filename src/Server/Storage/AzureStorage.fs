@@ -16,6 +16,10 @@ open System.Data.SqlClient
 open FSharp.Data
 open System.Text.RegularExpressions
 open System.Data
+open Server.HtmlElements
+open Fable.Helpers.React
+open Fable.Helpers.React.Props
+
 
 type AzureConnection = {
     BlobConnection : string
@@ -33,6 +37,27 @@ let getElementId attributes =
 
 let innerText el = 
   String.concat "" [ for e in el -> e.ToString() ]
+
+let rec parseAllElements (elements: HtmlNode list) =
+  [ for element in elements do
+      match element with
+      | HtmlElement(elementName, attributes, contents) ->
+        if translateNameWithContent.ContainsKey elementName then
+            // translate the element and call recursively on content
+            yield! 
+              [ (translateNameWithContent.[elementName] 
+                    [ Id (getElementId attributes) ] 
+                    (parseAllElements contents) ) ]
+        else 
+            // skip the current element and continue with the rest
+            if translateNameWithoutContent.ContainsKey elementName then
+                yield! [ translateNameWithoutContent.[elementName] [] ]
+            else ()
+      | HtmlCData x -> () // ignore
+      | HtmlComment x -> ()  // ignore
+      | HtmlText x -> yield! [ str x ] // return the text
+  ]
+    
 
 // Supported html elements: div, p, blockquote, ul, ol
 let rec parseElements (elements: HtmlNode list) (elementTypes: ArticleHtmlElement list) : (ArticleElement list) =
