@@ -173,6 +173,6 @@ let rec parseAllElements (element: SimpleHtmlNode) : Fable.Import.React.ReactEle
 
     | SimpleHtmlText x -> Some (str x) // return the text
 
-let parseSite (contents : SimpleHtmlNode list) =
+let htmlToReact (contents : SimpleHtmlNode list) =
     contents
     |> List.choose parseAllElements

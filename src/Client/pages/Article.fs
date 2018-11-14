@@ -31,7 +31,7 @@ type Model = {
     StartedEditing: System.DateTime
     User: UserData
     Heading: string
-    Text: ReactElement list
+    Text: ArticleText
     Link: string
     SourceWebsite: string
     MentionsSources: ArticleSourceType option
@@ -156,7 +156,7 @@ let init (user:UserData) (article: Article)  =
     { 
       User = user
       Heading = article.Title
-      Text = match article.Text with | Some t -> parseSite t | None -> []
+      Text = match article.Text with | Some t -> t | None -> []
       Link = article.ID 
       SourceWebsite = article.SourceWebsite
       MentionsSources = None 
@@ -170,14 +170,17 @@ let init (user:UserData) (article: Article)  =
       }, 
     fetchArticleCmd article user
 
+//------------------------------------------------------------------------------------------------
+// Determine if a given position is included in any highlighted region
+
 let isInsideHelper paragraph position (selection : Selection) =    
-    if selection.StartParagraphIdx = paragraph && selection.EndParagraphIdx = paragraph then
+    if selection.StartParagraphId = paragraph && selection.EndParagraphId = paragraph then
         position >= selection.StartIdx && position <= selection.EndIdx
-    else if selection.StartParagraphIdx = paragraph then 
+    else if selection.StartParagraphId = paragraph then 
         position >= selection.StartIdx 
-    else if selection.EndParagraphIdx = paragraph then
+    else if selection.EndParagraphId = paragraph then
         position <= selection.EndIdx
-    else if selection.StartParagraphIdx < paragraph && selection.EndParagraphIdx > paragraph then
+    else if selection.IncludedParagraphs |> List.contains paragraph  then
         true
     else false
 
@@ -200,11 +203,67 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
             Some (source.SourceID, activeSelections |> List.head)
         else None)
 
+//------------------------------------------------------------------------------------------------
+// Find all leaf elements in the HTML tree that represents the article - these leaf elements contain text with the highlights
+
+let rec collectArticleElementIds selectStatus (acc : string list) startId endId (node : SimpleHtmlNode) =
+    match node with 
+    | SimpleHtmlText _ -> selectStatus, acc
+    | SimpleHtmlElement(name, id, children) ->
+        match selectStatus with
+        | false ->
+            if id = startId then    
+                ((true, [id]), children)
+                ||> List.fold (fun (status, acc') child -> 
+                    collectArticleElementIds status acc' startId endId child)
+            else                
+                ((false, acc), children)
+                ||> List.fold (fun (status, acc') child -> 
+                    collectArticleElementIds status acc' startId endId child)
+        | true ->
+            if id = endId then
+                false, id :: acc // assume already added to accummulator
+            else
+                ((true, acc), children)
+                ||> List.fold (fun (status, acc') child -> 
+                    collectArticleElementIds status (if status then id :: acc' else acc') startId endId child)
+
+let rec filterLeafElementIds acc nodeList node =
+  match node with
+  | SimpleHtmlText _ -> true, acc
+  | SimpleHtmlElement(_,id, children) ->
+      let _, updatedAcc, _ = 
+        ((false, acc, false), children)
+        ||> List.fold (fun (state, acc', skipRest) ch -> 
+            if skipRest then (state, acc', true)
+            else
+              let isLeaf, acc'' = filterLeafElementIds acc' nodeList ch
+              if isLeaf then 
+                if nodeList |> List.contains id then 
+                  (false, id::acc'', true)
+                else
+                  (false, acc'', false)
+              else 
+                (state, acc'', false)
+              )
+      false, updatedAcc            
+
+let extractIntermediateLeafElements startId endId nodes =
+  if startId = endId then [startId]
+  else
+      nodes
+      |> List.collect (fun node ->
+          let _, elements = collectArticleElementIds false [] startId endId node
+          let _, leafElements = filterLeafElementIds [] elements node
+          leafElements
+      )
+
 
 type SelectionResult = 
     | NoSelection
     | NewHighlight of SourceId * Selection
     | ClickHighlight of SourceId * HighlightType * Selection
+    
 
 let getSelection (model: Model) e : SelectionResult = 
     let rawOutput = Browser.window.getSelection()
@@ -220,6 +279,8 @@ let getSelection (model: Model) e : SelectionResult =
             let endParagraph = 0 //model.Text |> Array.findIndex (fun el -> el.Id = endParagraphId)
             let startIdx = rawOutput.anchorOffset |> int
             let endIdx = rawOutput.focusOffset |> int
+
+            // TODO: deal with selection that was made in reverse order
             let startP, startI, endP, endI =
                 if startParagraph < endParagraph then
                     startParagraph, startIdx, endParagraph, endIdx
@@ -230,12 +291,11 @@ let getSelection (model: Model) e : SelectionResult =
 
             let result = 
              (id, { 
-               StartParagraphIdx = startP
                StartParagraphId = startParagraphId
                StartIdx = startI
-               EndParagraphIdx = endP
                EndParagraphId = endParagraphId
                EndIdx = endI
+               IncludedParagraphs = extractIntermediateLeafElements startParagraphId endParagraphId model.Text
                Text = rawOutput.toString() })
 
             window.getSelection().removeAllRanges()
@@ -558,13 +618,13 @@ let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
             div [ ClassName "article" ] [
               div [ ClassName "article-highlights container col-sm-12" ] 
                 // text with highlights at the bottom
-                ( model.Text 
-                  |> List.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
+                ( model.Text |> htmlToReact
+//                  |> List.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
                   )
               div [ ClassName "article-text container col-sm-12" ] 
                 // text without highlights and for highlighting
-                ( model.Text 
-                  |> List.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
+                ( model.Text |> htmlToReact
+//                  |> List.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
                   )
             ]
           yield hr []
@@ -736,22 +796,21 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         match article.Text with
         | Some t ->         
             Browser.console.log(t.[0])
-            let parsed = parseSite t
                         
             match annotations with
             | Some a -> 
                 if a.ArticleID = article.ID && a.User.UserName = model.User.UserName then
                     { model with 
-                        Text = parsed; 
+                        Text = t; 
                         MentionsSources = Some a.ArticleType
                         SourceInfo = a.Annotations; 
                         Submitted = Some true }
                     |> isCompleted, Cmd.none, NoOp
                 else
                     Browser.console.log("Annotations loaded for incorrect user.")
-                    { model with Text = parsed }|> isCompleted, Cmd.none, NoOp
+                    { model with Text = t }|> isCompleted, Cmd.none, NoOp
             | None -> 
-                { model with Text = parsed }|> isCompleted, Cmd.none, NoOp
+                { model with Text = t }|> isCompleted, Cmd.none, NoOp
         | None -> model|> isCompleted, Cmd.none, NoOp
 
     | FetchError e ->

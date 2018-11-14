@@ -86,12 +86,11 @@ type AnnotationsResetDetails =
     { Time : DateTime }
 
 type Selection = {
-    StartParagraphIdx: int
     StartParagraphId: string
-    EndParagraphIdx : int
     EndParagraphId: string
-    StartIdx : int  // within parent paragraph
-    EndIdx: int     // within parent paragraph
+    IncludedParagraphs : string list
+    StartIdx : int  // within parent element
+    EndIdx: int     // within parent element
     Text: string
 }
 
