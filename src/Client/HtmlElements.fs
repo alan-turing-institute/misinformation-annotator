@@ -2,6 +2,7 @@ module Client.HtmlElements
 
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
+open ServerCode.Domain
 
 let translateNameWithoutContent =
     [
@@ -148,22 +149,14 @@ let translateNameWithContent' =
         ("tspan", tspan)
     ] |> dict
 
-let getElementId attributes =
-    attributes 
-    |> List.choose (fun (HtmlAttribute(name, value)) -> 
-        if name = "data-node-index" then Some value else None)
-    |> List.exactlyOne
 
-let innerText el = 
-  String.concat "" [ for e in el -> e.ToString() ]  
-
-let rec parseAllElements (element: HtmlNode) : Fable.Import.React.ReactElement option =
+let rec parseAllElements (element: SimpleHtmlNode) : Fable.Import.React.ReactElement option =
     match element with
-    | HtmlElement(elementName, attributes, contents) ->
+    | SimpleHtmlElement(elementName, id, contents) ->
         if translateNameWithContent.ContainsKey elementName then
             // translate the element and call recursively on content
             let name = translateNameWithContent.[elementName]
-            let attr : IHTMLProp list = [ Id (getElementId attributes) ] 
+            let attr : IHTMLProp list = [ Id id ] 
             let body = 
                 contents 
                 |> List.choose parseAllElements
@@ -177,11 +170,9 @@ let rec parseAllElements (element: HtmlNode) : Fable.Import.React.ReactElement o
                 Some (translateNameWithoutContent.[elementName] [])
             else 
                 None
-    | HtmlCData x -> None // ignore
-    | HtmlComment x -> None  // ignore
-    | HtmlText x -> Some (str x) // return the text
 
-let parseSite (contents : string) =
-    let (HtmlDocument(_, elements)) = HtmlDocument.Parse(contents)
-    elements
-    |> List.map parseAllElements
+    | SimpleHtmlText x -> Some (str x) // return the text
+
+let parseSite (contents : SimpleHtmlNode list) =
+    contents
+    |> List.choose parseAllElements

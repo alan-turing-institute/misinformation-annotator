@@ -31,7 +31,7 @@ type Model = {
     StartedEditing: System.DateTime
     User: UserData
     Heading: string
-    Text: ArticleText
+    Text: ReactElement list
     Link: string
     SourceWebsite: string
     MentionsSources: ArticleSourceType option
@@ -156,7 +156,7 @@ let init (user:UserData) (article: Article)  =
     { 
       User = user
       Heading = article.Title
-      Text = match article.Text with | Some t -> t | None -> ""
+      Text = match article.Text with | Some t -> parseSite t | None -> []
       Link = article.ID 
       SourceWebsite = article.SourceWebsite
       MentionsSources = None 
@@ -533,15 +533,9 @@ let viewArticleElement idx (element: ReactElement) (elementType : ArticlePageEle
 
     // Where to put in the Id?
     //viewHtmlElements element
-    let testDict = [ "h1", h1; "p", p ] |> dict
-    let elementName = "h1"
-    let name = testDict.[elementName]
-    let attr : IHTMLProp list = [ Id "Some ID" ] 
-    let body = [ str "Some contents"]
-    let result = 
-          ( name attr body ) 
 
-    result
+    element
+
 
 let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
   [
@@ -564,16 +558,14 @@ let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
             div [ ClassName "article" ] [
               div [ ClassName "article-highlights container col-sm-12" ] 
                 // text with highlights at the bottom
-                // ( model.Text 
-                //   |> List.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
-                  //|> List.concat)
-                  []
+                ( model.Text 
+                  |> List.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
+                  )
               div [ ClassName "article-text container col-sm-12" ] 
                 // text without highlights and for highlighting
-                // ( model.Text 
-                //   |> List.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
-                  //|> List.concat)
-                  []
+                ( model.Text 
+                  |> List.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
+                  )
             ]
           yield hr []
           yield br [] 
@@ -750,16 +742,16 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             | Some a -> 
                 if a.ArticleID = article.ID && a.User.UserName = model.User.UserName then
                     { model with 
-                        Text = t; 
+                        Text = parsed; 
                         MentionsSources = Some a.ArticleType
                         SourceInfo = a.Annotations; 
                         Submitted = Some true }
                     |> isCompleted, Cmd.none, NoOp
                 else
                     Browser.console.log("Annotations loaded for incorrect user.")
-                    { model with Text = t }|> isCompleted, Cmd.none, NoOp
+                    { model with Text = parsed }|> isCompleted, Cmd.none, NoOp
             | None -> 
-                { model with Text = t }|> isCompleted, Cmd.none, NoOp
+                { model with Text = parsed }|> isCompleted, Cmd.none, NoOp
         | None -> model|> isCompleted, Cmd.none, NoOp
 
     | FetchError e ->
