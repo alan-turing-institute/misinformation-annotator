@@ -41,7 +41,7 @@ type ArticleElement = {
 type IdAttribute = string
 
 type SimpleHtmlNode = 
-    | SimpleHtmlElement of Name : string * Id : IdAttribute * Elements : SimpleHtmlNode list
+    | SimpleHtmlElement of Name : string * Id : IdAttribute * Elements : SimpleHtmlNode list * IsLeaf : bool
     | SimpleHtmlText of Content : string
 
 //===========================================================

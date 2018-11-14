@@ -152,7 +152,7 @@ let translateNameWithContent' =
 
 let rec parseAllElements (element: SimpleHtmlNode) : Fable.Import.React.ReactElement option =
     match element with
-    | SimpleHtmlElement(elementName, id, contents) ->
+    | SimpleHtmlElement(elementName, id, contents, isLeaf) ->
         if translateNameWithContent.ContainsKey elementName then
             // translate the element and call recursively on content
             let name = translateNameWithContent.[elementName]

@@ -38,7 +38,7 @@ let rec transformHtmlFormat (contents: HtmlNode list) =
     [ for el in contents do
         match el with 
         | HtmlElement(name, attributes, elements) ->
-            yield SimpleHtmlElement(name, getElementId attributes, transformHtmlFormat elements)
+            yield SimpleHtmlElement(name, getElementId attributes, transformHtmlFormat elements, false) // TODO
         | HtmlCData _ -> ()
         | HtmlComment _ -> ()
         | HtmlText x -> yield SimpleHtmlText(x)

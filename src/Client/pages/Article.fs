@@ -209,7 +209,7 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
 let rec collectArticleElementIds selectStatus (acc : string list) startId endId (node : SimpleHtmlNode) =
     match node with 
     | SimpleHtmlText _ -> selectStatus, acc
-    | SimpleHtmlElement(name, id, children) ->
+    | SimpleHtmlElement(name, id, children, isLeaf) ->
         match selectStatus with
         | false ->
             if id = startId then    
@@ -231,7 +231,7 @@ let rec collectArticleElementIds selectStatus (acc : string list) startId endId 
 let rec filterLeafElementIds acc nodeList node =
   match node with
   | SimpleHtmlText _ -> true, acc
-  | SimpleHtmlElement(_,id, children) ->
+  | SimpleHtmlElement(_,id, children, isLeaf) ->
       let _, updatedAcc, _ = 
         ((false, acc, false), children)
         ||> List.fold (fun (state, acc', skipRest) ch -> 
@@ -304,7 +304,7 @@ let getSelection (model: Model) e : SelectionResult =
         let paragraph = 
             let elementId = rawOutput.anchorNode.parentElement.id 
             //model.Text |> Array.findIndex (fun el -> el.Id = elementId)
-            0
+            elementId
         let position = rawOutput.anchorOffset |> int
 
         let clickedSelection = 
@@ -461,7 +461,7 @@ let getSpanID id selectionType =
   | AnonymityReasonHighlight -> Some (AnonymityText id)
   
 
-let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch: Msg -> unit) =
+let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) (dispatch: Msg -> unit) =
     if model.SourceInfo.Length = 0 then [ str text ] else
 
     // split up into pieces first, add span attributes later
@@ -479,12 +479,12 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
                 
             (paragraphParts, allSelections) 
             ||> List.fold (fun paragraphParts' (selectionType, selection) -> 
-                if paragraphIdx >= selection.StartParagraphIdx && paragraphIdx <= selection.EndParagraphIdx then
+                if paragraphId >= selection.StartParagraphId && paragraphId <= selection.EndParagraphId then
                     let startI = 
-                        if selection.StartParagraphIdx = paragraphIdx then selection.StartIdx
+                        if selection.StartParagraphId = paragraphId then selection.StartIdx
                         else 0
                     let endI = 
-                        if selection.EndParagraphIdx = paragraphIdx then selection.EndIdx
+                        if selection.EndParagraphId = paragraphId then selection.EndIdx
                         else text.Length       
                     
                     // Loop over paragraph parts
@@ -521,7 +521,7 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
                                 ]                            
                             else [part]
                         )
-                else
+                else 
                     // selection doesn't involve the current paragraph
                     paragraphParts' 
                 )
@@ -541,60 +541,70 @@ let viewParagraphHighlights (model: Model) paragraphIdx (text: string) (dispatch
             str part.Text
         | None -> str part.Text)    
 
-let viewArticleElement idx (element: ReactElement) (elementType : ArticlePageElementType) model dispatch =
+let viewArticleElement idx (element: SimpleHtmlNode) (elementType : ArticlePageElementType) model dispatch =
 
-    // let rec viewHtmlElements (htmlElements : ReactElement list) : ReactElement list =
-    //     match htmlElements with 
-    //     | he :: hes -> 
-    //         let attrs : IHTMLProp list = 
-    //             if hes = [] && elementType = BaseText then 
-    //                 // leaf element with contents
-    //                 [ Id element.Id
-    //                   OnMouseUp (fun e -> 
-    //                       match (getSelection model e) with
-    //                       | NewHighlight(id, selection) -> 
-    //                          dispatch (TextSelected (id,selection))
-    //                       | ClickHighlight(id, selectionType, selection) -> 
-    //                          dispatch (ShowDeleteButton (id, selectionType, selection))
-    //                       | NoSelection -> () ) ] 
-    //             else []
-    //         match he with
-    //         | Paragraph -> 
-    //             [ p attrs (viewHtmlElements hes) ]
-    //         | Blockquote -> 
-    //             [ blockquote attrs (viewHtmlElements hes) ]
-    //         | ListItem -> 
-    //             [ p (List.append attrs [ ClassName "list-item" ]) (viewHtmlElements hes) ]
-    //     | [] -> 
-    //         // put in the actual content
-    //       match elementType with
-    //       | BaseText ->
-    //           [ 
-    //             match model.ShowDeleteSelection with 
-    //             | None -> 
-    //               yield str element.Content
-    //             | Some (id, selectionType, selection) ->
-    //               if selection.EndParagraphIdx <> idx then
-    //                 yield str element.Content 
-    //               else
-    //                 Browser.console.log("inserting delete button, idx = " + string idx)
-    //                 let part1 = element.Content.[..selection.EndIdx-1]
-    //                 let part2 = element.Content.[selection.EndIdx..]
-    //                 yield span [] [ str part1 ]
-    //                 yield button [ 
-    //                        ClassName "btn btn-danger delete-highlight-btn" 
-    //                        OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
-    //                        [ str ("╳ Source " + string (id + 1)) ]
-    //                 yield span [] [ str part2 ]
-    //           ]
+    let rec viewArticleElementTree (htmlElement : SimpleHtmlNode) : ReactElement list option =
+        match htmlElement with
 
-    //       | HighlightedText -> 
-    //           viewParagraphHighlights model idx element.Content dispatch
+        | SimpleHtmlElement(elementName, id, contents, isLeaf) ->
+            if translateNameWithContent.ContainsKey elementName then
+                // translate the element and call recursively on content
+                let name = translateNameWithContent.[elementName]
+                let attr : IHTMLProp list = [
+                  yield upcast (Id id) 
+                  if isLeaf then 
+                      // attach event handlers
+                      yield upcast
+                        (OnMouseUp (fun e -> 
+                          match (getSelection model e) with
+                          | NewHighlight(id, selection) -> 
+                             dispatch (TextSelected (id,selection))
+                          | ClickHighlight(id, selectionType, selection) -> 
+                             dispatch (ShowDeleteButton (id, selectionType, selection))
+                          | NoSelection -> () ) )   ] 
+                let body = 
+                    contents 
+                    |> List.choose viewArticleElementTree
+                    |> List.concat
+                let result = 
+                      ( name attr body ) 
+                Some [ result ]
 
-    // Where to put in the Id?
-    //viewHtmlElements element
+            else 
+                // skip the current element and continue with the rest
+                if translateNameWithoutContent.ContainsKey elementName then
+                    Some [(translateNameWithoutContent.[elementName] [])]
+                else 
+                    None
 
-    element
+        | SimpleHtmlText content -> 
+          match elementType with 
+          | BaseText ->
+                match model.ShowDeleteSelection with 
+                | None -> 
+                    Some [ str content ]
+                | Some (id, selectionType, selection) ->
+                  if selection.EndParagraphId <> idx then
+                    Some [ str content ]
+                  else
+                    Browser.console.log("inserting delete button, idx = " + string idx)
+                    let part1 = content.[..selection.EndIdx-1]
+                    let part2 = content.[selection.EndIdx..]
+                    let result = [
+                        yield span [] [ str part1 ]
+                        yield button [ 
+                               ClassName "btn btn-danger delete-highlight-btn" 
+                               OnClick (fun _ -> dispatch (DeleteSelection (id, selectionType, selection)))]
+                               [ str ("╳ Source " + string (id + 1)) ]
+                        yield span [] [ str part2 ]
+                    ]
+                    Some result              
+
+          | HighlightedText -> 
+              Some (viewParagraphHighlights model idx content dispatch)
+
+
+    viewArticleElementTree element
 
 
 let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
