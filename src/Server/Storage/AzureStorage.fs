@@ -44,22 +44,36 @@ let rec transformHtmlFormat (contents: HtmlNode list) =
         | HtmlText x -> yield SimpleHtmlText(x)
     ]
 
+let rec markLeafNodes (contents : SimpleHtmlNode list) =
+    [ for el in contents do
+        match el with 
+        | SimpleHtmlText(x) -> yield (el, true)
+        | SimpleHtmlElement(name, id, elements, _) ->
+            let elements', areLeafs = markLeafNodes elements |> List.unzip
+            yield SimpleHtmlElement(name, id, elements', (areLeafs |> List.fold (||) false )), false
+    ]
+
 let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) includeContent = 
     [| while rdr.Read() do 
-        let articleContents = rdr.GetString(3)
+        
+        let contents = 
+            if includeContent then
+                let articleContents = rdr.GetString(3)
 
-        let (HtmlDocument(_, elements)) = HtmlDocument.Parse(articleContents)
-        let parsedContents : ArticleText = transformHtmlFormat elements
+                let (HtmlDocument(_, elements)) = HtmlDocument.Parse(articleContents)
+                let parsedContents : ArticleText = transformHtmlFormat elements
+                markLeafNodes parsedContents 
+                |> List.unzip 
+                |> fst
+                |> Some
+            else None
 
         yield { 
           ID = rdr.GetString(0)
           Title = rdr.GetString(1)
           SourceWebsite = rdr.GetString(2)
           AssignmentType = assignmentType
-          Text = 
-            (if includeContent then 
-               Some parsedContents
-             else None)
+          Text = contents
                  } |]    
 
 // ==============================================================================================
