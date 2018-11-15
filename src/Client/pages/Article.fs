@@ -541,9 +541,10 @@ let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) 
             str part.Text
         | None -> str part.Text)    
 
-let viewArticleElement idx (element: SimpleHtmlNode) (elementType : ArticlePageElementType) model dispatch =
+let viewArticleElement  (element: SimpleHtmlNode) (elementType : ArticlePageElementType) model dispatch =
 
-    let rec viewArticleElementTree (htmlElement : SimpleHtmlNode) : ReactElement list option =
+     
+    let rec viewArticleElementTree (parentId : string option) (htmlElement : SimpleHtmlNode) : ReactElement list option =
         match htmlElement with
 
         | SimpleHtmlElement(elementName, id, contents, isLeaf) ->
@@ -564,7 +565,7 @@ let viewArticleElement idx (element: SimpleHtmlNode) (elementType : ArticlePageE
                           | NoSelection -> () ) )   ] 
                 let body = 
                     contents 
-                    |> List.choose viewArticleElementTree
+                    |> List.choose (viewArticleElementTree (Some id))
                     |> List.concat
                 let result = 
                       ( name attr body ) 
@@ -580,14 +581,12 @@ let viewArticleElement idx (element: SimpleHtmlNode) (elementType : ArticlePageE
         | SimpleHtmlText content -> 
           match elementType with 
           | BaseText ->
-                match model.ShowDeleteSelection with 
-                | None -> 
+                match model.ShowDeleteSelection, parentId with 
+                | Some (id, selectionType, selection), Some parent ->
+                  if selection.EndParagraphId <> parent then
                     Some [ str content ]
-                | Some (id, selectionType, selection) ->
-                  if selection.EndParagraphId <> idx then
-                    Some [ str content ]
-                  else
-                    Browser.console.log("inserting delete button, idx = " + string idx)
+                  else 
+                    Browser.console.log("inserting delete button, id = " + parent)
                     let part1 = content.[..selection.EndIdx-1]
                     let part2 = content.[selection.EndIdx..]
                     let result = [
@@ -598,13 +597,22 @@ let viewArticleElement idx (element: SimpleHtmlNode) (elementType : ArticlePageE
                                [ str ("╳ Source " + string (id + 1)) ]
                         yield span [] [ str part2 ]
                     ]
-                    Some result              
+                    Some result      
+                | _ -> 
+                    Some [ str content ]
+                        
 
           | HighlightedText -> 
-              Some (viewParagraphHighlights model idx content dispatch)
+              match parentId with
+              | Some parent ->
+                  Some (viewParagraphHighlights model parent content dispatch)
+              | None ->
+                  Browser.console.log("Highlighted text with no parent ID.")
+                  None // error?   
+              
 
 
-    viewArticleElementTree element
+    viewArticleElementTree None element
 
 
 let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
@@ -628,13 +636,15 @@ let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
             div [ ClassName "article" ] [
               div [ ClassName "article-highlights container col-sm-12" ] 
                 // text with highlights at the bottom
-                ( model.Text |> htmlToReact
-//                  |> List.mapi (fun idx element -> viewArticleElement idx element HighlightedText model dispatch)
+                ( model.Text 
+                 |> List.choose (fun element -> viewArticleElement element HighlightedText model dispatch)
+                 |> List.concat
                   )
               div [ ClassName "article-text container col-sm-12" ] 
                 // text without highlights and for highlighting
-                ( model.Text |> htmlToReact
-//                  |> List.mapi (fun idx element -> viewArticleElement idx element BaseText model dispatch)
+                ( model.Text 
+                 |> List.choose (fun element -> viewArticleElement element BaseText model dispatch)
+                 |> List.concat
                   )
             ]
           yield hr []
