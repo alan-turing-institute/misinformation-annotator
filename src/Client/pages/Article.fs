@@ -274,20 +274,18 @@ let getSelection (model: Model) e : SelectionResult =
         | NoHighlight -> NoSelection
         | SourceText(id) | AnonymityText(id) ->
             let startParagraphId = rawOutput.anchorNode.parentElement.id 
-            let startParagraph = 0 //model.Text |> Array.findIndex (fun el -> el.Id = startParagraphId)
             let endParagraphId = rawOutput.focusNode.parentElement.id 
-            let endParagraph = 0 //model.Text |> Array.findIndex (fun el -> el.Id = endParagraphId)
             let startIdx = rawOutput.anchorOffset |> int
             let endIdx = rawOutput.focusOffset |> int
 
             // TODO: deal with selection that was made in reverse order
             let startP, startI, endP, endI =
-                if startParagraph < endParagraph then
-                    startParagraph, startIdx, endParagraph, endIdx
-                else if startParagraph = endParagraph then
-                    startParagraph, min startIdx endIdx, endParagraph, max startIdx endIdx
+                if startParagraphId < endParagraphId then
+                    startParagraphId, startIdx, endParagraphId, endIdx
+                else if startParagraphId = endParagraphId then
+                    startParagraphId, min startIdx endIdx, endParagraphId, max startIdx endIdx
                 else 
-                    endParagraph, endIdx, startParagraph, startIdx
+                    endParagraphId, endIdx, startParagraphId, startIdx
 
             let result = 
              (id, { 
@@ -462,6 +460,7 @@ let getSpanID id selectionType =
   
 
 let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) (dispatch: Msg -> unit) =
+    Browser.console.log("Processing highlights for paragraph " + paragraphId)
     if model.SourceInfo.Length = 0 then [ str text ] else
 
     // split up into pieces first, add span attributes later
@@ -486,7 +485,9 @@ let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) 
                     let endI = 
                         if selection.EndParagraphId = paragraphId then selection.EndIdx
                         else text.Length       
-                    
+                    Browser.console.log("highlight start index: " + string startI)
+                    Browser.console.log("highlight end index: " + string endI)
+                                        
                     // Loop over paragraph parts
                     paragraphParts'
                     |> List.collect (fun part -> 
