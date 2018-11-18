@@ -173,7 +173,7 @@ let init (user:UserData) (article: Article)  =
 //------------------------------------------------------------------------------------------------
 // Determine if a given position is included in any highlighted region
 
-let isInsideHelper paragraph position (selection : Selection) =    
+let isInsideHelper (paragraph: IdAttribute) position (selection : Selection) =    
     if selection.StartParagraphId = paragraph && selection.EndParagraphId = paragraph then
         position >= selection.StartIdx && position <= selection.EndIdx
     else if selection.StartParagraphId = paragraph then 
@@ -206,7 +206,7 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
 //------------------------------------------------------------------------------------------------
 // Find all leaf elements in the HTML tree that represents the article - these leaf elements contain text with the highlights
 
-let rec collectArticleElementIds selectStatus (acc : string list) startId endId (node : SimpleHtmlNode) =
+let rec collectArticleElementIds selectStatus (acc : IdAttribute list) startId endId (node : SimpleHtmlNode) =
     match node with 
     | SimpleHtmlText _ -> selectStatus, acc
     | SimpleHtmlElement(name, id, children, isLeaf) ->
@@ -273,8 +273,8 @@ let getSelection (model: Model) e : SelectionResult =
         match model.SourceSelectionMode with
         | NoHighlight -> NoSelection
         | SourceText(id) | AnonymityText(id) ->
-            let startParagraphId = rawOutput.anchorNode.parentElement.id 
-            let endParagraphId = rawOutput.focusNode.parentElement.id 
+            let startParagraphId = IdAttribute(rawOutput.anchorNode.parentElement.id)
+            let endParagraphId = IdAttribute(rawOutput.focusNode.parentElement.id )
             let startIdx = rawOutput.anchorOffset |> int
             let endIdx = rawOutput.focusOffset |> int
 
@@ -300,7 +300,7 @@ let getSelection (model: Model) e : SelectionResult =
             result |> NewHighlight
     | "Caret" -> 
         let paragraph = 
-            let elementId = rawOutput.anchorNode.parentElement.id 
+            let elementId = IdAttribute(rawOutput.anchorNode.parentElement.id )
             //model.Text |> Array.findIndex (fun el -> el.Id = elementId)
             elementId
         let position = rawOutput.anchorOffset |> int
@@ -459,8 +459,8 @@ let getSpanID id selectionType =
   | AnonymityReasonHighlight -> Some (AnonymityText id)
   
 
-let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) (dispatch: Msg -> unit) =
-    Browser.console.log("Processing highlights for paragraph " + paragraphId)
+let viewParagraphHighlights (model: Model) (paragraphId: IdAttribute) (text: string) (dispatch: Msg -> unit) =
+    Browser.console.log("Processing highlights for paragraph " + paragraphId.Value)
     if model.SourceInfo.Length = 0 then [ str text ] else
 
     // split up into pieces first, add span attributes later
@@ -545,7 +545,7 @@ let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) 
 let viewArticleElement  (element: SimpleHtmlNode) (elementType : ArticlePageElementType) model dispatch =
 
      
-    let rec viewArticleElementTree (parentId : string option) (htmlElement : SimpleHtmlNode) : ReactElement list option =
+    let rec viewArticleElementTree (parentId : IdAttribute option) (htmlElement : SimpleHtmlNode) : ReactElement list option =
         match htmlElement with
 
         | SimpleHtmlElement(elementName, id, contents, isLeaf) ->
@@ -553,7 +553,7 @@ let viewArticleElement  (element: SimpleHtmlNode) (elementType : ArticlePageElem
                 // translate the element and call recursively on content
                 let name = translateNameWithContent.[elementName]
                 let attr : IHTMLProp list = [
-                  yield upcast (Id id) 
+                  yield upcast (Id id.Value) 
                   if isLeaf then 
                       // attach event handlers
                       yield upcast
@@ -587,7 +587,7 @@ let viewArticleElement  (element: SimpleHtmlNode) (elementType : ArticlePageElem
                   if selection.EndParagraphId <> parent then
                     Some [ str content ]
                   else 
-                    Browser.console.log("inserting delete button, id = " + parent)
+                    Browser.console.log("inserting delete button, id = " + parent.Value)
                     let part1 = content.[..selection.EndIdx-1]
                     let part2 = content.[selection.EndIdx..]
                     let result = [
