@@ -38,7 +38,7 @@ let rec transformHtmlFormat (contents: HtmlNode list) =
     [ for el in contents do
         match el with 
         | HtmlElement(name, attributes, elements) ->
-            yield SimpleHtmlElement(name, getElementId attributes, transformHtmlFormat elements, false) // TODO
+            yield SimpleHtmlElement(name, (getElementId attributes), transformHtmlFormat elements, false) // TODO
         | HtmlCData _ -> ()
         | HtmlComment _ -> ()
         | HtmlText x -> yield SimpleHtmlText(x)
@@ -453,6 +453,7 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) (articleType
 
 let loadArticleFromDB connectionString link = task {
    let article = selectArticle link connectionString.SqlConnection Standard true
+   printfn "Fetched article from database: %A" article
    return
         article
 }

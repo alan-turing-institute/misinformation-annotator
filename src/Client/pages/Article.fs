@@ -77,6 +77,41 @@ type ExternalMsg =
     | NextArticle of string // pass the link to the current article
     | MarkAsAnnotated of string // mark current article as annotated
 
+//==================================================
+// Code to compare article IDs
+let compare (x: IdAttribute) (y: IdAttribute) = 
+    if x = y then 0  
+    else
+    let xs = x.Split '.' |> Array.map int
+    let ys = y.Split '.' |> Array.map int
+    let xs', ys' =
+        if xs.Length = ys.Length then xs, ys 
+        else
+            if xs.Length > ys.Length then 
+                xs, Array.append ys (Array.init (xs.Length - ys.Length) (fun _ -> 0))
+            else
+                Array.append xs (Array.init (ys.Length - xs.Length) (fun _ -> 0)), ys
+    let result, decided =
+        (xs', ys')
+        ||> Array.zip
+        |> Array.fold (fun (res, decid) (a,b) -> 
+            if not decid then
+                if a = b then (0, false)
+                else 
+                    if a < b then (-1, true)
+                    else (1, true) // a < b
+            else (res, decid))
+            (0, false) 
+    if decided then result else 0
+
+let (.<.) x y = (compare x y) < 0
+let (.>.) x y = (compare x y) > 0
+let (.<=.) x y = (compare x y) <= 0
+let (.>=.) x y = (compare x y) >= 0
+let (.=.) x y = (compare x y) = 0
+
+
+//==================================================
 
 let colours = 
     [|"#8dd3c7";"#fdb462";"#bebada";"#fb8072";"#80b1d3";"#ffffb3";"#b3de69";"#fccde5";"#d9d9d9";"#bc80bd";"#ccebc5";"#ffed6f"|]
@@ -174,11 +209,11 @@ let init (user:UserData) (article: Article)  =
 // Determine if a given position is included in any highlighted region
 
 let isInsideHelper paragraph position (selection : Selection) =    
-    if selection.StartParagraphId = paragraph && selection.EndParagraphId = paragraph then
+    if selection.StartParagraphId .=. paragraph && selection.EndParagraphId .=. paragraph then
         position >= selection.StartIdx && position <= selection.EndIdx
-    else if selection.StartParagraphId = paragraph then 
+    else if selection.StartParagraphId .=. paragraph then 
         position >= selection.StartIdx 
-    else if selection.EndParagraphId = paragraph then
+    else if selection.EndParagraphId .=. paragraph then
         position <= selection.EndIdx
     else if selection.IncludedParagraphs |> List.contains paragraph  then
         true
@@ -206,13 +241,13 @@ let isInsideSelection paragraph position (sources: SourceInfo []) =
 //------------------------------------------------------------------------------------------------
 // Find all leaf elements in the HTML tree that represents the article - these leaf elements contain text with the highlights
 
-let rec collectArticleElementIds selectStatus (acc : string list) startId endId (node : SimpleHtmlNode) =
+let rec collectArticleElementIds selectStatus (acc : IdAttribute list) startId endId (node : SimpleHtmlNode) =
     match node with 
     | SimpleHtmlText _ -> selectStatus, acc
     | SimpleHtmlElement(name, id, children, isLeaf) ->
         match selectStatus with
         | false ->
-            if id = startId then    
+            if id .=. startId then    
                 ((true, [id]), children)
                 ||> List.fold (fun (status, acc') child -> 
                     collectArticleElementIds status acc' startId endId child)
@@ -221,7 +256,7 @@ let rec collectArticleElementIds selectStatus (acc : string list) startId endId 
                 ||> List.fold (fun (status, acc') child -> 
                     collectArticleElementIds status acc' startId endId child)
         | true ->
-            if id = endId then
+            if id .=. endId then
                 false, id :: acc // assume already added to accummulator
             else
                 ((true, acc), children)
@@ -256,7 +291,7 @@ let extractIntermediateLeafElements startId endId nodes =
           let _, elements = collectArticleElementIds false [] startId endId node
           let _, leafElements = filterLeafElementIds [] elements node
           leafElements
-      )
+      ) 
 
 
 type SelectionResult = 
@@ -273,25 +308,25 @@ let getSelection (model: Model) e : SelectionResult =
         match model.SourceSelectionMode with
         | NoHighlight -> NoSelection
         | SourceText(id) | AnonymityText(id) ->
-            let startParagraphId = rawOutput.anchorNode.parentElement.id 
-            let endParagraphId = rawOutput.focusNode.parentElement.id 
+            let startParagraphId = rawOutput.anchorNode.parentElement.id
+            let endParagraphId = rawOutput.focusNode.parentElement.id
             let startIdx = rawOutput.anchorOffset |> int
             let endIdx = rawOutput.focusOffset |> int
 
             // TODO: deal with selection that was made in reverse order
             let startP, startI, endP, endI =
-                if startParagraphId < endParagraphId then
+                if startParagraphId .<. endParagraphId then
                     startParagraphId, startIdx, endParagraphId, endIdx
-                else if startParagraphId = endParagraphId then
+                else if startParagraphId .=. endParagraphId then
                     startParagraphId, min startIdx endIdx, endParagraphId, max startIdx endIdx
                 else 
                     endParagraphId, endIdx, startParagraphId, startIdx
 
             let result = 
              (id, { 
-               StartParagraphId = startParagraphId
+               StartParagraphId = startP
                StartIdx = startI
-               EndParagraphId = endParagraphId
+               EndParagraphId = endP
                EndIdx = endI
                IncludedParagraphs = extractIntermediateLeafElements startParagraphId endParagraphId model.Text
                Text = rawOutput.toString() })
@@ -459,8 +494,7 @@ let getSpanID id selectionType =
   | AnonymityReasonHighlight -> Some (AnonymityText id)
   
 
-let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) (dispatch: Msg -> unit) =
-    Browser.console.log("Processing highlights for paragraph " + paragraphId)
+let viewParagraphHighlights (model: Model) (paragraphId: IdAttribute) (text: string) (dispatch: Msg -> unit) =
     if model.SourceInfo.Length = 0 then [ str text ] else
 
     // split up into pieces first, add span attributes later
@@ -478,12 +512,12 @@ let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) 
                 
             (paragraphParts, allSelections) 
             ||> List.fold (fun paragraphParts' (selectionType, selection) -> 
-                if paragraphId >= selection.StartParagraphId && paragraphId <= selection.EndParagraphId then
+                if paragraphId .>=. selection.StartParagraphId && paragraphId .<=. selection.EndParagraphId then
                     let startI = 
-                        if selection.StartParagraphId = paragraphId then selection.StartIdx
+                        if selection.StartParagraphId .=. paragraphId then selection.StartIdx
                         else 0
                     let endI = 
-                        if selection.EndParagraphId = paragraphId then selection.EndIdx
+                        if selection.EndParagraphId .=. paragraphId then selection.EndIdx
                         else text.Length       
                     Browser.console.log("highlight start index: " + string startI)
                     Browser.console.log("highlight end index: " + string endI)
@@ -545,7 +579,7 @@ let viewParagraphHighlights (model: Model) (paragraphId: string) (text: string) 
 let viewArticleElement  (element: SimpleHtmlNode) (elementType : ArticlePageElementType) model dispatch =
 
      
-    let rec viewArticleElementTree (parentId : string option) (htmlElement : SimpleHtmlNode) : ReactElement list option =
+    let rec viewArticleElementTree (parentId : IdAttribute option) (htmlElement : SimpleHtmlNode) : ReactElement list option =
         match htmlElement with
 
         | SimpleHtmlElement(elementName, id, contents, isLeaf) ->
