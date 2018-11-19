@@ -156,7 +156,7 @@ let rec parseAllElements (element: SimpleHtmlNode) : Fable.Import.React.ReactEle
         if translateNameWithContent.ContainsKey elementName then
             // translate the element and call recursively on content
             let name = translateNameWithContent.[elementName]
-            let attr : IHTMLProp list = [ Id id ] 
+            let attr : IHTMLProp list = [ Id id.Value ] 
             let body = 
                 contents 
                 |> List.choose parseAllElements

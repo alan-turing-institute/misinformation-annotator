@@ -310,6 +310,7 @@ let getSelection (model: Model) e : SelectionResult =
         | SourceText(id) | AnonymityText(id) ->
             let startParagraphId = rawOutput.anchorNode.parentElement.id
             let endParagraphId = rawOutput.focusNode.parentElement.id
+
             let startIdx = rawOutput.anchorOffset |> int
             let endIdx = rawOutput.focusOffset |> int
 

@@ -31,7 +31,7 @@ type AzureConnection = {
 let getElementId attributes =
     attributes 
     |> List.choose (fun (HtmlAttribute(name, value)) -> 
-        if name = "data-node-index" then Some value else None)
+        if name = "data-node-index" then Some (IdAttribute(value)) else None)
     |> List.exactlyOne
 
 let rec transformHtmlFormat (contents: HtmlNode list) =
