@@ -38,44 +38,8 @@ type ArticleElement = {
 
 //===========================================================
 
-//type IdAttribute = string
+type IdAttribute = string
 
-[<Struct; CustomEquality; CustomComparison>]
-type IdAttribute(value:string) = 
-     member x.Value = value
-     override x.Equals(yobj) = 
-       match yobj with
-         | :? IdAttribute as y -> (x = y)
-         | _ -> false
-     interface System.IComparable with
-       member x.CompareTo yobj =
-           match yobj with
-             | :? IdAttribute as y -> 
-                if x.Value = y.Value then 0
-                else
-                let xs = x.Value.Split '.' |> Array.map int
-                let ys = y.Value.Split '.' |> Array.map int
-                let xs', ys' =
-                    if xs.Length = ys.Length then xs, ys 
-                    else
-                        if xs.Length > ys.Length then 
-                            xs, Array.append ys (Array.init (xs.Length - ys.Length) (fun _ -> 0))
-                        else
-                            Array.append xs (Array.init (ys.Length - xs.Length) (fun _ -> 0)), ys
-                let result, decided =
-                    (xs', ys')
-                    ||> Array.zip
-                    |> Array.fold (fun (res, decid) (a,b) -> 
-                        if not decid then
-                            if a = b then (0, false)
-                            else 
-                                if a < b then (-1, true)
-                                else (1, true) // a < b
-                        else (res, decid))
-                        (0, false)
-                if decided then result else 0
-
-             | _ -> invalidArg "yobj" "cannot compare values of different types"
 
 type SimpleHtmlNode = 
     | SimpleHtmlElement of Name : string * Id : IdAttribute * Elements : SimpleHtmlNode list * IsLeaf : bool
