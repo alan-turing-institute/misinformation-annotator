@@ -739,10 +739,13 @@ let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
                  for i in 0..model.SourceInfo.Length-1 do
                       yield viewAddSource model i dispatch
                       
-                 yield button 
-                        [ ClassName "btn btn-primary"
-                          OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
-                        [ str "+ Add additional source"]
+                 yield
+                   div [ClassName "row"] [     
+                     button 
+                      [ ClassName "btn btn-primary"
+                        OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
+                      [ str "+ Add additional source"]
+                   ]
             yield 
                 div [] [
                     yield hr []
