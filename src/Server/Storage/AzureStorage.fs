@@ -82,14 +82,23 @@ let selectArticle articleId sqlConn assignmentType includeText =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
   conn.Open()
 
-  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v3] WHERE [article_url] = @ArticleId;" 
+  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v4] WHERE [article_url] = @ArticleId;" 
   use cmd = new SqlCommand(command, conn)
   cmd.Parameters.AddWithValue("@ArticleId", articleId) |> ignore
-
+  
   let rdr = cmd.ExecuteReader()
-  let result =
-      parseArticleData rdr assignmentType includeText
-      |> Array.exactlyOne
+  let result = 
+    if rdr.RecordsAffected = 1 then    
+          parseArticleData rdr assignmentType includeText
+          |> Array.exactlyOne
+    else
+        // try previous version of database - this applies specifically to training articles
+        let command' = "SELECT article_url, title, site_name, plain_content FROM [articles_v3] WHERE [article_url] = @ArticleId;" 
+        use cmd' = new SqlCommand(command', conn)
+        cmd'.Parameters.AddWithValue("@ArticleId", articleId) |> ignore
+        let rdr' = cmd'.ExecuteReader()
+        parseArticleData rdr' assignmentType includeText
+          |> Array.exactlyOne
   conn.Close()  
   result
 
@@ -158,6 +167,7 @@ let loadArticlesFromFile connectionString = task {
     return articles        
 }
 
+// Training articles!
 let selectTrainingArticles connectionString =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
@@ -187,8 +197,8 @@ WITH unfinished_articles AS (
     FROM [annotations] 
     WHERE user_id =@UserId AND annotation IS NULL
 )
-SELECT articles_v3.article_url, title, site_name, plain_content FROM [articles_v3] 
-INNER JOIN unfinished_articles ON articles_v3.article_url = unfinished_articles.article_url"
+SELECT articles_v4.article_url, title, site_name, plain_content FROM [articles_v4] 
+INNER JOIN unfinished_articles ON articles_v4.article_url = unfinished_articles.article_url"
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
@@ -216,9 +226,9 @@ to_finish AS (
          (SELECT * FROM unfinished_articles 
           WHERE unfinished_articles.article_url = annotations.article_url)
 )
-SELECT TOP (@ArticleCount) articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] INNER JOIN to_finish 
-ON to_finish.article_url = articles_v3.article_url"
+SELECT TOP (@ArticleCount) articles_v4.article_url, title, site_name, plain_content 
+FROM [articles_v4] INNER JOIN to_finish 
+ON to_finish.article_url = articles_v4.article_url"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
@@ -247,13 +257,13 @@ WITH selected_articles AS (
     ORDER BY batch_id DESC
 ),
 sorted_articles_by_site AS (
-    SELECT articles_v3.article_url, title, site_name, plain_content, ROW_NUMBER()
+    SELECT articles_v4.article_url, title, site_name, plain_content, ROW_NUMBER()
     over (
         PARTITION BY [site_name] 
         order by [id]
     ) AS row_num 
-    FROM [articles_v3] INNER JOIN selected_articles 
-    ON articles_v3.article_url = selected_articles.article_url
+    FROM [articles_v4] INNER JOIN selected_articles 
+    ON articles_v4.article_url = selected_articles.article_url
 )
 SELECT TOP (@ArticleCount) article_url, title, site_name, plain_content, row_num FROM sorted_articles_by_site WHERE row_num <= @ArticleCount ORDER BY newid()
 "    
@@ -280,9 +290,9 @@ WITH conflicts AS (
         HAVING COUNT(distinct num_sources) = 2 AND COUNT(*) = 2
     ) 
 )
-SELECT TOP (@Count) articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] INNER JOIN conflicts 
-ON articles_v3.article_url = conflicts.article_url"  
+SELECT TOP (@Count) articles_v4.article_url, title, site_name, plain_content 
+FROM [articles_v4] INNER JOIN conflicts 
+ON articles_v4.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
@@ -308,9 +318,9 @@ WITH annotated AS (
         HAVING COUNT(*) = 2
     ) 
 )
-SELECT TOP (@Count) articles_v3.article_url, title, site_name, plain_content 
-FROM [articles_v3] INNER JOIN annotated 
-ON articles_v3.article_url = annotated.article_url"  
+SELECT TOP (@Count) articles_v4.article_url, title, site_name, plain_content 
+FROM [articles_v4] INNER JOIN annotated 
+ON articles_v4.article_url = annotated.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
