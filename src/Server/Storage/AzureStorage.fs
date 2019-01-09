@@ -92,6 +92,7 @@ let selectArticle articleId sqlConn assignmentType includeText =
           parseArticleData rdr assignmentType includeText
           |> Array.exactlyOne
     else
+        rdr.Close()
         // try previous version of database - this applies specifically to training articles
         let command' = "SELECT article_url, title, site_name, plain_content FROM [articles_v3] WHERE [article_url] = @ArticleId;" 
         use cmd' = new SqlCommand(command', conn)
@@ -252,7 +253,7 @@ WITH selected_articles AS (
     ) 
     AND
     batch_id IN (
-            SELECT batch_id FROM [batch] WHERE active = 1
+            SELECT batch_id FROM [batch] WHERE active = 1 AND name NOT LIKE 'Training%'
     )
     ORDER BY batch_id DESC
 ),
