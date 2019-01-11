@@ -88,9 +88,10 @@ let selectArticle articleId sqlConn assignmentType includeText =
   
   let rdr = cmd.ExecuteReader()
   let result = 
-    if rdr.RecordsAffected = 1 then    
+    let parsed = 
           parseArticleData rdr assignmentType includeText
-          |> Array.exactlyOne
+    if parsed.Length = 1 then
+        parsed |> Array.exactlyOne
     else
         rdr.Close()
         // try previous version of database - this applies specifically to training articles
@@ -216,6 +217,7 @@ let selectAddAnnotationArticles connectionString userName count =
 WITH unfinished_articles AS (
     SELECT article_url 
     FROM [annotations] 
+    WHERE user_proficiency <> 'Training'
     GROUP BY article_url 
     HAVING (COUNT(article_url) = 1)
 ),
@@ -227,7 +229,7 @@ to_finish AS (
          (SELECT * FROM unfinished_articles 
           WHERE unfinished_articles.article_url = annotations.article_url)
 )
-SELECT TOP (@ArticleCount) articles_v4.article_url, title, site_name, plain_content 
+SELECT TOP (@ArticleCount) articles_v4.article_url, title, site_name 
 FROM [articles_v4] INNER JOIN to_finish 
 ON to_finish.article_url = articles_v4.article_url"
 
@@ -245,28 +247,28 @@ let selectNewArticles articlesToShow connectionString =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
     let command = "
-WITH selected_articles AS (
-    SELECT TOP 10000 article_url FROM [batch_article]
+WITH selected_ids AS (
+    -- articles in the current batch
+    SELECT article_id FROM [batch_article]
     WHERE
     article_url NOT IN (
             SELECT article_url FROM [annotations]
     ) 
     AND
     batch_id IN (
-            SELECT batch_id FROM [batch] WHERE active = 1 AND name NOT LIKE 'Training%'
+            SELECT id FROM [batch] WHERE active = 1 AND name NOT LIKE 'Training%'
     )
-    ORDER BY batch_id DESC
 ),
 sorted_articles_by_site AS (
-    SELECT articles_v4.article_url, title, site_name, plain_content, ROW_NUMBER()
+    SELECT article_url, title, site_name, ROW_NUMBER()
     over (
         PARTITION BY [site_name] 
         order by [id]
     ) AS row_num 
-    FROM [articles_v4] INNER JOIN selected_articles 
-    ON articles_v4.article_url = selected_articles.article_url
+    FROM articles_v4, selected_ids 
+    WHERE selected_ids.article_id = articles_v4.id
 )
-SELECT TOP (@ArticleCount) article_url, title, site_name, plain_content, row_num FROM sorted_articles_by_site WHERE row_num <= @ArticleCount ORDER BY newid()
+SELECT TOP (@ArticleCount) article_url, title, site_name FROM sorted_articles_by_site WHERE row_num <= (@ArticleCount) ORDER BY newid()
 "    
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
@@ -598,7 +600,7 @@ let FlagArticle ( connectionString : AzureConnection) (flaggedArticle: Domain.Fl
     let! text = task {    
         return! blob.DownloadTextAsync()
     }
-    let text' = text + sprintf "%s,%s" flaggedArticle.User.UserName flaggedArticle.ArticleID
+    let text' = text + sprintf "%s,%s,%s\n" flaggedArticle.User.UserName flaggedArticle.ArticleID (System.DateTime.Now.ToString())
     let! result = blob.UploadTextAsync(text')
     let! exists = blob.ExistsAsync()
     return exists
