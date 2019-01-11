@@ -216,7 +216,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                         | User -> 
                             yield
                               button 
-                                [ ClassName "btn btn-light"
+                                [ ClassName "btn btn-primary"
                                   OnClick (fun _ -> dispatch (LoadArticleBatch Standard)) ] [ str "Load new articles to annotate"]
                                   
                         | Training -> ()                              

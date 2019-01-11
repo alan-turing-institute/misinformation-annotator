@@ -38,7 +38,7 @@ let rec transformHtmlFormat (contents: HtmlNode list) =
     [ for el in contents do
         match el with 
         | HtmlElement(name, attributes, elements) ->
-            yield SimpleHtmlElement(name, (getElementId attributes), transformHtmlFormat elements, false) // TODO
+            yield SimpleHtmlElement(name, (getElementId attributes), transformHtmlFormat elements, false) 
         | HtmlCData _ -> ()
         | HtmlComment _ -> ()
         | HtmlText x -> yield SimpleHtmlText(x)
@@ -156,7 +156,6 @@ let getArticlesBlob (connectionString : AzureConnection) = task {
 let loadArticlesFromFile connectionString = task {
     let! results = task {
         let! articleBlob = getArticlesBlob connectionString
-        // TODO: Find articles that should be displayed to the specific user
         return! articleBlob.DownloadTextAsync()
     }
     
@@ -356,7 +355,7 @@ let shuffle articles =
     |> Array.sortBy (fun _ -> rnd.Next())
 
 let loadArticlesFromSQLDatabase connectionString userData articleType = task {
-    // TODO: Find articles that should be displayed to the specific user
+    // Find articles that should be displayed to the specific user
     let articlesToShow = 20
 
     match userData.Proficiency with
@@ -477,8 +476,6 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
 
     let annotationText = FableJson.toJson annotations
 
-    // TODO: Check if there already is an entry with the same user-article pair
-    // and if so, then overwrite that
     let commandText = 
        "UPDATE [annotations]
        SET annotation = @Annotation, updated_date = @UpdatedDate, num_sources = @NumSources

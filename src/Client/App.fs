@@ -174,7 +174,6 @@ let update msg model =
         | Article.ExternalMsg.NextArticle id ->
             Browser.console.log("Going to the next article...")
             // mark current article as annotated 
-            // TODO - deal with the last article
             let model' = 
                 { model with 
                    AllArticles = 

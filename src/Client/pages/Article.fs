@@ -314,7 +314,7 @@ let getSelection (model: Model) e : SelectionResult =
             let startIdx = rawOutput.anchorOffset |> int
             let endIdx = rawOutput.focusOffset |> int
 
-            // TODO: deal with selection that was made in reverse order
+            // This part deals with selection done in reverse, from back to front
             let startP, startI, endP, endI =
                 if startParagraphId .<. endParagraphId then
                     startParagraphId, startIdx, endParagraphId, endIdx
