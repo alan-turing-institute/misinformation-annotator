@@ -1,3 +1,6 @@
+### 0.2 - 2019-01-12
+* Integrated with new version of article database
+
 ### 0.1.9 - 2018-11-07
 * Full database integration
 * Preliminary article formatting
