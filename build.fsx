@@ -39,6 +39,7 @@ let dockerUser = getBuildParam "DockerUser"
 let dockerPassword = getBuildParam "DockerPassword"
 let dockerLoginServer = getBuildParam "DockerLoginServer"
 let dockerImageName = getBuildParam "DockerImageName"
+let dockerOrg = getBuildParam "DockerOrg"
 
 // --------------------------------------------------------------------------------------
 // END TODO: The rest of the file includes standard build steps
@@ -255,7 +256,7 @@ Target "PrepareRelease" (fun _ ->
     let result =
         ExecProcess (fun info ->
             info.FileName <- "docker"
-            info.Arguments <- sprintf "tag %s/%s %s/%s:%s" dockerUser dockerImageName dockerUser dockerImageName release.NugetVersion) TimeSpan.MaxValue
+            info.Arguments <- sprintf "tag %s/%s %s/%s:%s" dockerOrg dockerImageName dockerOrg dockerImageName release.NugetVersion) TimeSpan.MaxValue
     if result <> 0 then failwith "Docker tag failed"
 )
 
@@ -290,7 +291,7 @@ Target "CreateDockerImage" (fun _ ->
         ExecProcess (fun info ->
             info.FileName <- "docker"
             info.UseShellExecute <- false
-            info.Arguments <- sprintf "build -t %s/%s ." dockerUser dockerImageName) TimeSpan.MaxValue
+            info.Arguments <- sprintf "build -t %s/%s ." dockerOrg dockerImageName) TimeSpan.MaxValue
     if result <> 0 then failwith "Docker build failed"
 )
 
@@ -301,7 +302,7 @@ Target "TestDockerImage" (fun _ ->
     let result =
         ExecProcess (fun info ->
             info.FileName <- "docker"
-            info.Arguments <- sprintf "run -d -p 127.0.0.1:8086:8085 --rm --name %s -it %s/%s" testImageName dockerUser dockerImageName) TimeSpan.MaxValue
+            info.Arguments <- sprintf "run -d -p 127.0.0.1:8086:8085 --rm --name %s -it %s/%s" testImageName dockerOrg dockerImageName) TimeSpan.MaxValue
     if result <> 0 then failwith "Docker run failed"
 
     System.Threading.Thread.Sleep 5000 |> ignore  // give server some time to start
@@ -330,7 +331,7 @@ Target "Deploy" (fun _ ->
         ExecProcess (fun info ->
             info.FileName <- "docker"
             info.WorkingDirectory <- deployDir
-            info.Arguments <- sprintf "push %s/%s" dockerUser dockerImageName) TimeSpan.MaxValue
+            info.Arguments <- sprintf "push %s/%s" dockerOrg dockerImageName) TimeSpan.MaxValue
     if result <> 0 then failwith "Docker push failed"
 )
 
