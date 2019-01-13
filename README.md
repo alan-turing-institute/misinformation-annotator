@@ -31,7 +31,7 @@ For the case of the client ["Hot Module Replacement"](https://webpack.js.org/con
 
 Usually you can just keep this mode running and running. Just edit files, see the browser refreshing and commit + push with git.
 
-In development mode, the app runs locally using files from local file system. You can change that by providing it with the Azure connection string in `Server/Program.fs` file. The connection string is in Azure portal, listed in the corresponding storage account.
+In development mode, the app runs locally using files from local file system. You can change that by providing it with the Azure connection strings in environment variables for blob storage `CUSTOMCONNSTR_BLOBSTORAGE` and SQL database `SQLAZURECONNSTR_SQLDATABASE`. When the environment variables are set, the app runs locally while using data from Azure storage.
 
 ## Deployment
 
@@ -39,7 +39,7 @@ The deployment for this repo works via [docker](https://www.docker.com/) with Li
 
 #### Docker Hub
 
-The [Docker Hub](https://hub.docker.com) repository for the project is [evelina/misinformation](https://hub.docker.com/r/evelina/misinformation/).
+The DockerHub repository for the project is [turinginst/misinformation](https://cloud.docker.com/u/turinginst/repository/docker/turinginst/misinformation).
 
 #### Release script
 
@@ -70,7 +70,7 @@ To deploy the app, copy the following content to a `release.sh` script and fill 
       fi
     }
 
-    DOCKERARGS="Deploy DockerLoginServer=docker.io DockerImageName=misinformation  DockerUser=CHANGE_ME  DockerPassword=CHANGE_ME"
+    DOCKERARGS="Deploy DockerLoginServer=docker.io DockerImageName=misinformation DockerOrg=turinginst DockerUser=CHANGE_ME  DockerPassword=CHANGE_ME"
     run $PAKET_EXE restore
     run $FAKE_EXE $DOCKERARGS $FSIARGS $FSIARGS2 build.fsx
 
@@ -87,11 +87,7 @@ You should be able to reach the website on [misinformation.azurewebsites.net](ht
 #### Notes
 
 - The app is deployed using the Azure *Web app for containers* resource
-- Once deployed, go to Container settings and edit the Startup file:
-
-        Server.dll --AzureConnection="Azure storage connection string"
-
-- The webhook URL in container settings is used in the Docker hub repo
+- The webhook URL in Azure container settings is used in the Docker hub repo
 - For additional information see [SAFE BookStore app](https://github.com/SAFE-Stack/SAFE-BookStore)
 
 
