@@ -171,7 +171,7 @@ let update msg model =
             { model' with PageModel = ArticleModel m' }, 
             Cmd.map ArticleMsg cmd
 
-        | Article.ExternalMsg.NextArticle id ->
+        | Article.ExternalMsg.GetNextArticle id ->
             Browser.console.log("Going to the next article...")
             // mark current article as annotated 
             let model' = 
@@ -185,6 +185,7 @@ let update msg model =
                               |> List.map (fun (a, isAnnotated) -> 
                                   if a.ID = id then (a, true) else (a, isAnnotated))})}
 
+            // TODO: Change this - Fetch next article!
             // find the next article
             let nextIdx = 
                 match model.AllArticles with

@@ -74,7 +74,7 @@ type Msg =
 
 type ExternalMsg = 
     | NoOp    
-    | NextArticle of string // pass the link to the current article
+    | GetNextArticle of string // pass the link to the current article
     | MarkAsAnnotated of string // mark current article as annotated
 
 //==================================================
@@ -1010,7 +1010,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with SourceSelectionMode = AnonymityText id } |> isCompleted, Cmd.none, NoOp        
 
     | GoToNextArticle ->
-        model, Cmd.none, NextArticle model.Link
+        model, Cmd.none, GetNextArticle model.Link
 
     | SetNote (sourceIdx, text) ->
         let sourceInfo = model.SourceInfo
