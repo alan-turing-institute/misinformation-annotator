@@ -16,11 +16,12 @@ open System
 
 type Model =
   { PreviouslyAnnotated : ArticleList
+    CurrentArticle : Article option    // Currently assigned article for annotation
     Token : string
     UserInfo : UserData
     ResetTime : DateTime option
     ErrorMsg : string option
-    SelectedArticle : Article option
+    SelectedArticle : Article option   // Article clicked on
     Finished : bool
     Loading : bool }
 
@@ -28,6 +29,7 @@ type Model =
 type Msg =
     | LoadForUser of string
     | FetchedArticles of ArticleList
+    | FetchedNextArticle of ArticleList
     | FetchedResetTime of DateTime
     | FetchError of exn
     | SelectArticle of Article
@@ -39,10 +41,10 @@ type ExternalMsg =
     | NoOp
     | CacheAllArticles of ArticleList
 
-let loadPreviouslyAnnotated (user: UserData) =
+let loadArticles (user: UserData, articleType: ArticleAssignment) =
     promise {
         let url = ServerUrls.APIUrls.Annotations
-        let body = toJson (user)
+        let body = toJson (user, articleType)
         let props =
             [ RequestProperties.Method HttpMethod.POST
               Fetch.requestHeaders [
@@ -53,14 +55,13 @@ let loadPreviouslyAnnotated (user: UserData) =
         return! Fetch.fetchAs<ArticleList> url props
     }
 
-let loadPreviouslyAnnotatedCmd user =
-    Browser.console.log("Requesting previously articles")
+let loadArticlesCmd user articleType =
+    Browser.console.log("Requesting articles")
     Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
 
 let loadSingleArticleCmd user =
-    Browser.console.log("Load next single article")
-    // TODO    
-    Cmd.none
+    Browser.console.log("Load next article to annotated")
+    Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
 
 let getResetTime token =
     promise {
@@ -94,6 +95,7 @@ let init (user:UserData, articleList : ArticleList option) =
       ResetTime = None
       ErrorMsg = None
       SelectedArticle = None
+      CurrentArticle = None
       Finished = false
       Loading = 
         match articleList with
@@ -101,7 +103,11 @@ let init (user:UserData, articleList : ArticleList option) =
         | Some _ -> false
     } |> checkIfFinished,
       match articleList with 
-      | None -> loadPreviouslyAnnotatedCmd user Unfinished
+      | None -> 
+        Cmd.batch [
+            loadArticlesCmd user PreviouslyAnnotated
+            loadSingleArticleCmd user
+        ]
       | Some _ -> Cmd.none
 
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
@@ -115,6 +121,14 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         let annotations = 
             { annotations with Articles = annotations.Articles  }
         { model with PreviouslyAnnotated = annotations; Loading = false } |> checkIfFinished, Cmd.none, CacheAllArticles annotations
+
+    | FetchedNextArticle article ->
+        Browser.console.log("Fetched next article to annotate")
+        Browser.console.log(article)
+        let article', _ = article.Articles |> List.exactlyOne
+        { model with CurrentArticle = Some article'; Loading = false } |> checkIfFinished, 
+        Cmd.none, NoOp
+
 
     | FetchedResetTime datetime ->
         { model with ResetTime = Some datetime } |> checkIfFinished, Cmd.none, NoOp

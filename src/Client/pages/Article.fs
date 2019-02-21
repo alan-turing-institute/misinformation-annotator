@@ -801,7 +801,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
               ID = model.Link; 
               Text = None; 
               SourceWebsite = model.SourceWebsite
-              AssignmentType = Standard } model.User,
+              AssignmentType = NextArticle } model.User,
             NoOp
          
     | View -> 

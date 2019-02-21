@@ -25,6 +25,12 @@ type AzureConnection = {
     SqlConnection : string 
 }
 
+[<Literal>]
+let AnnotatedProportion = 0.5
+
+[<Literal>]
+let ConflictCountThreshold = 3
+
 // ==============================================================================================
 // Html parsing code to format articles
 
@@ -82,7 +88,7 @@ let selectArticle articleId sqlConn assignmentType includeText =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
   conn.Open()
 
-  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v4] WHERE [article_url] = @ArticleId;" 
+  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v5] WHERE [article_url] = @ArticleId;" 
   use cmd = new SqlCommand(command, conn)
   cmd.Parameters.AddWithValue("@ArticleId", articleId) |> ignore
   
@@ -198,8 +204,8 @@ WITH unfinished_articles AS (
     FROM [annotations] 
     WHERE user_id =@UserId AND annotation IS NULL
 )
-SELECT articles_v4.article_url, title, site_name, plain_content FROM [articles_v4] 
-INNER JOIN unfinished_articles ON articles_v4.article_url = unfinished_articles.article_url"
+SELECT articles_v5.article_url, title, site_name, plain_content FROM [articles_v5] 
+INNER JOIN unfinished_articles ON articles_v5.article_url = unfinished_articles.article_url"
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
@@ -208,77 +214,77 @@ INNER JOIN unfinished_articles ON articles_v4.article_url = unfinished_articles.
     conn.Close()
     result
 
-let selectAddAnnotationArticles connectionString userName count =
-    // articles that have only one annotation right now
-    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
-    conn.Open()
-    let command = "
-WITH unfinished_articles AS (
-    SELECT article_url 
-    FROM [annotations] 
-    WHERE user_proficiency <> 'Training'
-    GROUP BY article_url 
-    HAVING (COUNT(article_url) = 1)
-),
-to_finish AS (
-    SELECT article_url
-    FROM [annotations]
-    WHERE user_id <> @UserId 
-        AND EXISTS 
-         (SELECT * FROM unfinished_articles 
-          WHERE unfinished_articles.article_url = annotations.article_url)
-)
-SELECT TOP (@ArticleCount) articles_v4.article_url, title, site_name 
-FROM [articles_v4] INNER JOIN to_finish 
-ON to_finish.article_url = articles_v4.article_url"
+// let selectAddAnnotationArticles connectionString userName count =
+//     // articles that have only one annotation right now
+//     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+//     conn.Open()
+//     let command = "
+// WITH unfinished_articles AS (
+//     SELECT article_url 
+//     FROM [annotations] 
+//     WHERE user_proficiency <> 'Training'
+//     GROUP BY article_url 
+//     HAVING (COUNT(article_url) = 1)
+// ),
+// to_finish AS (
+//     SELECT article_url
+//     FROM [annotations]
+//     WHERE user_id <> @UserId 
+//         AND EXISTS 
+//          (SELECT * FROM unfinished_articles 
+//           WHERE unfinished_articles.article_url = annotations.article_url)
+// )
+// SELECT TOP (@ArticleCount) articles_v5.article_url, title, site_name 
+// FROM [articles_v5] INNER JOIN to_finish 
+// ON to_finish.article_url = articles_v5.article_url"
 
-    use cmd = new SqlCommand(command, conn)
-    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
-    cmd.Parameters.AddWithValue("@ArticleCount", count) |> ignore    
+//     use cmd = new SqlCommand(command, conn)
+//     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
+//     cmd.Parameters.AddWithValue("@ArticleCount", count) |> ignore    
 
-    let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr Standard false
-    conn.Close()
-    result
+//     let rdr = cmd.ExecuteReader()
+//     let result = parseArticleData rdr Standard false
+//     conn.Close()
+//     result
 
-let selectNewArticles articlesToShow connectionString =
-    // Select all articles in active batches that are not currently being annotated already
-    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
-    conn.Open()
-    let command = "
-WITH selected_ids AS (
-    -- articles in the current batch
-    SELECT article_id FROM [batch_article]
-    WHERE
-    article_url NOT IN (
-            SELECT article_url FROM [annotations]
-    ) 
-    AND
-    batch_id IN (
-            SELECT id FROM [batch] WHERE active = 1 AND name NOT LIKE 'Training%'
-    )
-),
-sorted_articles_by_site AS (
-    SELECT article_url, title, site_name, ROW_NUMBER()
-    over (
-        PARTITION BY [site_name] 
-        order by [id]
-    ) AS row_num 
-    FROM articles_v4, selected_ids 
-    WHERE selected_ids.article_id = articles_v4.id
-)
-SELECT TOP (@ArticleCount) article_url, title, site_name FROM sorted_articles_by_site WHERE row_num <= (@ArticleCount) ORDER BY newid()
-"    
-    use cmd = new SqlCommand(command, conn)
-    cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
+// let selectNewArticles articlesToShow connectionString =
+//     // Select all articles in active batches that are not currently being annotated already
+//     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+//     conn.Open()
+//     let command = "
+// WITH selected_ids AS (
+//     -- articles in the current batch
+//     SELECT article_id FROM [batch_article]
+//     WHERE
+//     article_url NOT IN (
+//             SELECT article_url FROM [annotations]
+//     ) 
+//     AND
+//     batch_id IN (
+//             SELECT id FROM [batch] WHERE active = 1 AND name NOT LIKE 'Training%'
+//     )
+// ),
+// sorted_articles_by_site AS (
+//     SELECT article_url, title, site_name, ROW_NUMBER()
+//     over (
+//         PARTITION BY [site_name] 
+//         order by [id]
+//     ) AS row_num 
+//     FROM articles_v5, selected_ids 
+//     WHERE selected_ids.article_id = articles_v5.id
+// )
+// SELECT TOP (@ArticleCount) article_url, title, site_name FROM sorted_articles_by_site WHERE row_num <= (@ArticleCount) ORDER BY newid()
+// "    
+//     use cmd = new SqlCommand(command, conn)
+//     cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
 
-    let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr Standard false
-    conn.Close()
-    result
+//     let rdr = cmd.ExecuteReader()
+//     let result = parseArticleData rdr Standard false
+//     conn.Close()
+//     result
 
-let selectConflictingArticles userName connectionString maxCount =
-    // Select all articles that have two annotations with conflicting number of sources identified
+let selectConflictingArticle connectionString userName =
+    // Select an article that has two annotations with conflicting number of sources identified
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
     let command = "
@@ -287,66 +293,117 @@ WITH conflicts AS (
     FROM [annotations]
     WHERE article_url IN (
         SELECT article_url FROM [annotations]
-        WHERE user_id <> @UserId
+        WHERE user_id <> 'test' AND num_sources IS NOT NULL
         GROUP BY article_url
-        HAVING COUNT(distinct num_sources) = 2 AND COUNT(*) = 2
+        HAVING 
+            COUNT(*) = 2 AND -- there are two annotations
+            MAX(num_sources) - MIN(num_sources) > @Threshold -- difference between them is larger than threshold
+            
     ) 
 )
-SELECT TOP (@Count) articles_v4.article_url, title, site_name, plain_content 
-FROM [articles_v4] INNER JOIN conflicts 
-ON articles_v4.article_url = conflicts.article_url"  
+SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
+FROM [articles_v5] INNER JOIN conflicts 
+ON articles_v5.article_url = conflicts.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
-    cmd.Parameters.AddWithValue("@Count", maxCount) |> ignore
+    cmd.Parameters.AddWithValue("@Threshold", ConflictCountThreshold) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr ConflictingAnnotation false
+    let result = parseArticleData rdr NextArticle false
     conn.Close()
     result
 
 let selectFinishedArticles userName connectionString maxCount =
-    // Select all articles that have two annotations by normal users
+    // Select all articles annotated by the current user previously
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
     let command = "
 WITH annotated AS (
-    SELECT DISTINCT article_url
+    SELECT TOP (@Count) article_url
     FROM [annotations]
     WHERE article_url IN (
         SELECT article_url FROM [annotations]
-        WHERE user_id <> @UserId AND num_sources IS NOT NULL
-        GROUP BY article_url
-        HAVING COUNT(*) = 2
+        WHERE user_id = @UserId AND num_sources IS NOT NULL
+    ORDER BY updated_date
     ) 
 )
-SELECT TOP (@Count) articles_v4.article_url, title, site_name, plain_content 
-FROM [articles_v4] INNER JOIN annotated 
-ON articles_v4.article_url = annotated.article_url"  
+SELECT articles_v5.article_url, title, site_name, plain_content 
+FROM [articles_v5] INNER JOIN annotated 
+ON articles_v5.article_url = annotated.article_url"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
     cmd.Parameters.AddWithValue("@Count", maxCount) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr ThirdExpertAnnotation false
+    let result = parseArticleData rdr PreviouslyAnnotated false
     conn.Close()
     result
 
-let loadNextBatchOfArticles connectionString userName articlesToShow =
-    // 1. Select articles that have annotation by only one user
-    let articlesUncomplete =    
-        selectAddAnnotationArticles connectionString userName articlesToShow
+/// Select next article for standard annotation
+let selectNextStandardArticle connectionString userName =
+    
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "
+DECLARE @selected_minibatch INT;
+DECLARE @selected_url NVARCHAR(800);
 
-    // 3. Select the remaining articles from the current batch in the articles database
-    let articlesNew =
-        let n = articlesToShow - articlesUncomplete.Length
-        if n > 0 then 
-            selectNewArticles n connectionString
-        else    
-            [||]
+WITH user_annotations AS (
+    SELECT article_url, annotation FROM [annotations]
+    WHERE user_id = @UserId
+),
+annotated_in_minibatch AS (
+    SELECT minibatch_id, COUNT(batch_article_test.article_url) AS n_total, COUNT(user_annotations.annotation) AS n_annotated
+    FROM [batch_article_test]
+        LEFT JOIN user_annotations ON user_annotations.article_url = batch_article_test.article_url
+    GROUP BY minibatch_id
+)
+SELECT @selected_minibatch = (
+    SELECT TOP(1) annotated_in_minibatch.minibatch_id 
+    FROM annotated_in_minibatch 
+        INNER JOIN batch_info_test ON annotated_in_minibatch.minibatch_id = batch_info_test.minibatch_id
+    WHERE n_annotated/n_total <= @AnnotatedProportion AND priority > 0
+    ORDER BY priority
+)
+SELECT @selected_url = (
+    SELECT TOP(1) article_url 
+    FROM batch_article_test 
+    WHERE minibatch_id = @selected_minibatch AND
+        article_url NOT IN (SELECT article_url FROM [annotations] WHERE user_id = @UserId)
+    ORDER BY NEWID()
+)
+SELECT articles_v5.article_url, title, site_name, plain_content 
+FROM [articles_v5] 
+WHERE article_url = @selected_url    
+"  
+    // TODO: Rewrite to reflect step 2 of algorithm
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
+    cmd.Parameters.AddWithValue("@AnnotatedProportion", AnnotatedProportion) |> ignore
 
-    Array.append articlesUncomplete articlesNew
+    let rdr = cmd.ExecuteReader()
+    let result = parseArticleData rdr NextArticle false
+    conn.Close()
+    result
+
+
+
+// let loadNextBatchOfArticles connectionString userName articlesToShow =
+//     // 1. Select articles that have annotation by only one user
+//     let articlesUncomplete =    
+//         selectAddAnnotationArticles connectionString userName articlesToShow
+
+//     // 3. Select the remaining articles from the current batch in the articles database
+//     let articlesNew =
+//         let n = articlesToShow - articlesUncomplete.Length
+//         if n > 0 then 
+//             selectNewArticles n connectionString
+//         else    
+//             [||]
+
+//     Array.append articlesUncomplete articlesNew
 
 // Randomize the order of articles as they are shown to the user
 let shuffle articles =
@@ -354,67 +411,48 @@ let shuffle articles =
     articles
     |> Array.sortBy (fun _ -> rnd.Next())
 
-let loadArticlesFromSQLDatabase connectionString userData articleType = task {
+let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleType = task {
     // Find articles that should be displayed to the specific user
-    let articlesToShow = 20
+    let maxArticlesToShow = 20
 
-    match userData.Proficiency with
-    | Training ->
-        // Select a training subset of articles
-        printfn "Pulling training articles"
+    match articleType with
+    | PreviouslyAnnotated ->
+        // load all previously annotated articles
         let articles = 
-            selectTrainingArticles connectionString
+            selectFinishedArticles userData.UserName connectionString maxArticlesToShow
         return articles
+
+    | Unfinished ->
+        // check if there is a previously assigned article without annotation
+        // based on the logic of the algorithm, there should be only one such article
+        let articles = 
+            selectUnfinishedArticles connectionString userData.UserName
+        if articles.Length > 1 then 
+            printfn "Warning: user %s has more than 1 unfinished annotation in the database." userData.UserName
+        return articles
+
+    | NextArticle ->
+        // Main user assignment algorithm
+
+        match userData.Proficiency with
+        | Training -> return [||] // TODO
         
-    | User ->
-        match articleType with
-        | Unfinished ->
-            // Select articles previously assigned to user with unfinished annotations
+        | User ->
+            // standard user
+            return
+                selectNextStandardArticle connectionString userData.UserName
+
+        | Expert ->
+            // expert user
             let articles = 
-                selectUnfinishedArticles connectionString userData.UserName
-                |> shuffle
+                let conflicts = 
+                    selectConflictingArticle connectionString userData.UserName
+                if conflicts.Length = 0 then
+                    selectNextStandardArticle connectionString userData.UserName
+                else
+                    conflicts
             return articles
 
-        | Standard ->
-            // Load articles that need to be completed and new articles
-            let articles = 
-                loadNextBatchOfArticles connectionString userData.UserName articlesToShow
-                |> shuffle
-            return articles
-
-        | ConflictingAnnotation | ThirdExpertAnnotation -> return [||]
-
-    
-    | Expert ->
-        match articleType with
-        | Unfinished ->
-            // Select articles previously assigned to user with unfinished annotations
-            let articles = 
-                selectUnfinishedArticles connectionString userData.UserName
-                |> shuffle
-            return articles
-
-        | ConflictingAnnotation ->
-            // Select articles with conflicting annotations
-            let articles = 
-                selectConflictingArticles userData.UserName connectionString articlesToShow
-                |> shuffle
-            return articles
-
-        | ThirdExpertAnnotation ->
-            // Select articles to add third annotation
-            let articles = 
-                selectFinishedArticles userData.UserName connectionString articlesToShow
-                |> shuffle
-            return articles
-
-
-        | Standard ->
-            // Load articles that need to be completed and new articles
-            let articles = 
-                loadNextBatchOfArticles connectionString userData.UserName articlesToShow
-                |> shuffle
-            return articles
 
 }
 
@@ -464,7 +502,7 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) (articleType
 }
 
 let loadArticleFromDB connectionString link = task {
-   let article = selectArticle link connectionString.SqlConnection Standard true
+   let article = selectArticle link connectionString.SqlConnection NextArticle true
    return
         article
 }

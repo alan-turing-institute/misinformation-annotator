@@ -51,10 +51,12 @@ type ArticleText =
     SimpleHtmlNode list
 
 type ArticleAssignment =
+    | PreviouslyAnnotated
+    | NextArticle
     | Unfinished
-    | Standard
-    | ConflictingAnnotation
-    | ThirdExpertAnnotation
+    // | Standard
+    // | ConflictingAnnotation
+    // | ThirdExpertAnnotation
 
 /// The data for each article in /api/annotations
 type Article =
@@ -69,7 +71,7 @@ type Article =
           ID = "" 
           Text = None
           SourceWebsite = ""
-          AssignmentType = Standard }                    
+          AssignmentType = NextArticle }                    
 
 /// The logical representation of the data for /api/annotations
 type Annotated = bool
