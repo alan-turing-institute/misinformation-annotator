@@ -182,6 +182,18 @@ let view (model:Model) (dispatch: Msg -> unit) =
          else
             // check if there are any unfinished articles or if all work has been finished
             div [] [
+
+                (if model.Finished then
+                    // load new article to annotate 
+                    div [] [
+                        button 
+                          [ ClassName "bnt btn-info" 
+                            OnClick (fun _ -> dispatch (LoadSingleArticle)) ]
+                          [ str "Next article to annotate" ]
+                    ]
+                 else div [] []
+                )
+
                 ( if model.PreviouslyAnnotated.Articles.Length > 0 then     
                     // Existing articles to annotate
                       div [] [
@@ -204,16 +216,6 @@ let view (model:Model) (dispatch: Msg -> unit) =
                   else  div [][]
                 ); 
 
-                (if model.Finished then
-                    // load new articles to annotate 
-                    div [] [
-                        button 
-                          [ ClassName "bnt btn-light" 
-                            OnClick (fun _ -> dispatch (LoadSingleArticle)) ]
-                          [ str "Next article to annotate" ]
-                    ]
-                 else div [] []
-                )
             ]
                
         )
