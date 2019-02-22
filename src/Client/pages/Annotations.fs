@@ -35,6 +35,7 @@ type Msg =
     | SelectArticle of Article
     | LoadArticleBatch of ArticleAssignment
     | LoadSingleArticle
+    | FetchedUnfinishedArticle of ArticleList
 
 type ExternalMsg =
     | ViewArticle of Article
@@ -62,6 +63,10 @@ let loadArticlesCmd user articleType =
 let loadSingleArticleCmd user =
     Browser.console.log("Load next article to annotated")
     Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
+
+let loadUnfinishedArticleCmd user =
+    Browser.console.log("Load next article to annotated")
+    Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
 
 let getResetTime token =
     promise {
@@ -107,7 +112,8 @@ let init (user:UserData, articleList : ArticleList option) =
       | None -> 
         Cmd.batch [
             loadArticlesCmd user PreviouslyAnnotated
-            loadSingleArticleCmd user
+            loadUnfinishedArticleCmd user
+            //loadSingleArticleCmd user
         ]
       | Some _ -> Cmd.none
 
@@ -133,6 +139,15 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             Loading = false } |> checkIfFinished, 
         Cmd.ofMsg (SelectArticle article'), NoOp
 
+    | FetchedUnfinishedArticle articles ->
+        Browser.console.log("Fetched uninished article to annotate")
+        Browser.console.log(articles)
+
+        let article', _ = articles.Articles |> List.exactlyOne
+        { model with 
+            CurrentArticle = Some article'; 
+            Loading = false } |> checkIfFinished, 
+        Cmd.none, NoOp        
 
     | FetchedResetTime datetime ->
         { model with ResetTime = Some datetime } |> checkIfFinished, Cmd.none, NoOp
@@ -199,12 +214,30 @@ let view (model:Model) (dispatch: Msg -> unit) =
                                 [ ClassName "btn btn-disabled" ] )
                           [ str "Next article to annotate" ]
                     ]
-                 else div [] []
+                 else div [] [
+                  // TODO - display unfinished articles
+                          h3 [] [ str "To annotate" ]
+                          table [ClassName "table table-striped table-hover"] [
+                                    thead [] [
+                                            tr [] [
+                                                th [] [str "Title"]
+                                                th [] [str ""]
+                                        ]
+                                    ]
+                                    tbody [] (
+                                        match model.CurrentArticle with
+                                        | None -> []
+                                        | Some article ->
+                                            [viewArticleComponent article false dispatch]
+                                    )
+                                ]
+                 ]
                 )
 
                 ( if model.PreviouslyAnnotated.Articles.Length > 0 then     
                     // Existing articles to annotate
                       div [] [
+                        h3 [] [ str "Previously annotated" ]
                         table [ClassName "table table-striped table-hover"] [
                             thead [] [
                                     tr [] [
