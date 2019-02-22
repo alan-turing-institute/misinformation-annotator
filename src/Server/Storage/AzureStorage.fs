@@ -382,7 +382,7 @@ annotated_counts AS (  -- Count how many annotations are there for each article,
     FROM potential_articles LEFT JOIN [annotations] ON annotations.article_url = potential_articles.article_url
     WHERE potential_articles.article_url NOT IN (SELECT article_url FROM [annotations] WHERE user_id = @UserId)
     GROUP BY potential_articles.article_url
-    HAVING COUNT(*) < 2  -- needs to be fixed?
+    HAVING COUNT(*) < 2  -- needs to be fixed? NULLS!
 )
 SELECT @selected_url = (
     SELECT TOP(1) article_url 
@@ -394,7 +394,7 @@ SELECT articles_v5.article_url, title, site_name, plain_content
 FROM [articles_v5] 
 WHERE articles_v5.article_url = @selected_url
 "  
-    // TODO: Rewrite to reflect step 2 of algorithm
+    // TODO: test properly
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
     cmd.Parameters.AddWithValue("@AnnotatedProportion", AnnotatedProportion) |> ignore

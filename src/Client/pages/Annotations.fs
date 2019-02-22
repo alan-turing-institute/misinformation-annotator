@@ -82,6 +82,7 @@ let checkIfFinished model =
         Finished = 
             (true, model.PreviouslyAnnotated.Articles)
             ||> List.fold (fun state (_, annotated) -> state && annotated)
+            && model.CurrentArticle.IsNone
     }
 
 let init (user:UserData, articleList : ArticleList option) =
@@ -125,9 +126,12 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | FetchedNextArticle article ->
         Browser.console.log("Fetched next article to annotate")
         Browser.console.log(article)
+
         let article', _ = article.Articles |> List.exactlyOne
-        { model with CurrentArticle = Some article'; Loading = false } |> checkIfFinished, 
-        Cmd.none, NoOp
+        { model with 
+            CurrentArticle = Some article'; 
+            Loading = false } |> checkIfFinished, 
+        Cmd.ofMsg (SelectArticle article'), NoOp
 
 
     | FetchedResetTime datetime ->
@@ -187,8 +191,12 @@ let view (model:Model) (dispatch: Msg -> unit) =
                     // load new article to annotate 
                     div [] [
                         button 
-                          [ ClassName "bnt btn-info" 
-                            OnClick (fun _ -> dispatch (LoadSingleArticle)) ]
+                          ( match model.CurrentArticle with
+                            | None ->
+                                [ ClassName "btn btn-info" 
+                                  OnClick (fun _ -> dispatch (LoadSingleArticle)) ]
+                            | Some _ ->
+                                [ ClassName "btn btn-disabled" ] )
                           [ str "Next article to annotate" ]
                     ]
                  else div [] []
