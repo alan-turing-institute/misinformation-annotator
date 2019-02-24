@@ -34,7 +34,7 @@ let urlUpdate (result:Page option) (model: Model) =
     | Some Page.Annotations ->
         match model.User with
         | Some user ->
-            let m, cmd = Annotations.init(user, model.AllArticles)
+            let m, cmd = Annotations.init(user, model.AllArticles, model.ArticleToAnnotate)
             { model with PageModel = AnnotationsModel m }, Cmd.map AnnotationsMsg cmd
         | None ->
             model, Cmd.ofMsg (Logout ())
@@ -79,6 +79,7 @@ let init result =
         let model =
             { User = user
               SelectedArticle = None
+              ArticleToAnnotate = None
               AllArticles = None
               PageModel = HomePageModel }
 
@@ -133,6 +134,12 @@ let update msg model =
                 PageModel = AnnotationsModel m},
                 Cmd.map AnnotationsMsg cmd
 
+        | Annotations.ExternalMsg.CacheUnannotated article ->
+            { model with 
+                ArticleToAnnotate = Some article
+                PageModel = AnnotationsModel m},
+                Cmd.map AnnotationsMsg cmd
+
     | AnnotationsMsg _, _ ->
         model, Cmd.none
 
@@ -158,6 +165,7 @@ let update msg model =
             { model with PageModel = ArticleModel m' }, Cmd.map ArticleMsg cmd
 
         | Article.ExternalMsg.MarkAsAnnotated id ->
+            // TODO
             let model' = 
                 { model with 
                    AllArticles = 
@@ -172,6 +180,7 @@ let update msg model =
             Cmd.map ArticleMsg cmd
 
         | Article.ExternalMsg.GetNextArticle id ->
+            // TODO: change this
             Browser.console.log("Going to the next article...")
             // mark current article as annotated 
             let model' = 
@@ -210,7 +219,7 @@ let update msg model =
                         ]
 
             | None ->    
-                let m, cmd = Annotations.init(model'.User.Value, model.AllArticles)
+                let m, cmd = Annotations.init(model'.User.Value, model.AllArticles, model.ArticleToAnnotate)
                 { model' with 
                     PageModel = AnnotationsModel m },
                 Cmd.batch [

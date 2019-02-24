@@ -41,6 +41,7 @@ type ExternalMsg =
     | ViewArticle of Article
     | NoOp
     | CacheAllArticles of ArticleList
+    | CacheUnannotated of Article
 
 let loadArticles (user: UserData, articleType: ArticleAssignment) =
     promise {
@@ -61,11 +62,11 @@ let loadArticlesCmd user articleType =
     Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
 
 let loadSingleArticleCmd user =
-    Browser.console.log("Load next article to annotated")
+    Browser.console.log("Load next article to be annotated")
     Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
 
 let loadUnfinishedArticleCmd user =
-    Browser.console.log("Load next article to annotated")
+    Browser.console.log("Load next article to be annotated")
     Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
 
 let getResetTime token =
@@ -90,7 +91,7 @@ let checkIfFinished model =
             && model.CurrentArticle.IsNone
     }
 
-let init (user:UserData, articleList : ArticleList option) =
+let init (user:UserData, articleList : ArticleList option, toAnnotate : Article option) =
     Browser.console.log("Initializing list of annotations")
     { PreviouslyAnnotated = 
         match articleList with
@@ -101,7 +102,7 @@ let init (user:UserData, articleList : ArticleList option) =
       ResetTime = None
       ErrorMsg = None
       SelectedArticle = None
-      CurrentArticle = None
+      CurrentArticle = toAnnotate
       Finished = false
       Loading = 
         match articleList with
@@ -137,17 +138,26 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with 
             CurrentArticle = Some article'; 
             Loading = false } |> checkIfFinished, 
-        Cmd.ofMsg (SelectArticle article'), NoOp
+        Cmd.ofMsg (SelectArticle article'), 
+        CacheUnannotated article'
 
     | FetchedUnfinishedArticle articles ->
-        Browser.console.log("Fetched uninished article to annotate")
+        Browser.console.log("Fetched unfinished article to annotate")
         Browser.console.log(articles)
 
-        let article', _ = articles.Articles |> List.exactlyOne
-        { model with 
-            CurrentArticle = Some article'; 
-            Loading = false } |> checkIfFinished, 
-        Cmd.none, NoOp        
+        if articles.Articles.Length = 1 then
+            let article = articles.Articles |> List.exactlyOne |> fst
+            { model with 
+                CurrentArticle = Some article
+                Loading = false } |> checkIfFinished, 
+            Cmd.none, 
+            CacheUnannotated article    
+        else
+            { model with
+                CurrentArticle = None
+                Loading = false } |> checkIfFinished,
+            Cmd.none,
+            NoOp            
 
     | FetchedResetTime datetime ->
         { model with ResetTime = Some datetime } |> checkIfFinished, Cmd.none, NoOp

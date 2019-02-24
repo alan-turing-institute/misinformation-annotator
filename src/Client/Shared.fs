@@ -12,6 +12,7 @@ type PageModel =
 type Model =
     { User : UserData option
       SelectedArticle : Article option
+      ArticleToAnnotate : Article option  // TODO - implement this
       AllArticles : ArticleList option
       PageModel : PageModel }
 
