@@ -12,6 +12,7 @@ type PageModel =
 type Model =
     { User : UserData option
       SelectedArticle : Article option
+      ArticleToAnnotate : Article option  
       AllArticles : ArticleList option
       PageModel : PageModel }
 
@@ -24,7 +25,11 @@ type Msg =
     | AnnotationsMsg of Annotations.Msg
     | Logout of unit
     | ArticleMsg of Article.Msg
-   
+    
+    | FetchedArticles of ArticleList
+    | FetchedNextArticle of ArticleList
+    | FetchedUnfinishedArticle of ArticleList
+    | FetchError of exn
 
 // VIEW
 

@@ -15,6 +15,7 @@ let home: HttpHandler = fun _ ctx ->
             PageModel = PageModel.HomePageModel
             SelectedArticle = None
             AllArticles = None
+            ArticleToAnnotate = None
         }
         return! ctx.WriteHtmlViewAsync (Templates.index (Some model))
     }

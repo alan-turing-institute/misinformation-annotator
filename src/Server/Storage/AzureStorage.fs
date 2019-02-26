@@ -214,74 +214,6 @@ INNER JOIN unfinished_articles ON articles_v5.article_url = unfinished_articles.
     conn.Close()
     result
 
-// let selectAddAnnotationArticles connectionString userName count =
-//     // articles that have only one annotation right now
-//     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
-//     conn.Open()
-//     let command = "
-// WITH unfinished_articles AS (
-//     SELECT article_url 
-//     FROM [annotations] 
-//     WHERE user_proficiency <> 'Training'
-//     GROUP BY article_url 
-//     HAVING (COUNT(article_url) = 1)
-// ),
-// to_finish AS (
-//     SELECT article_url
-//     FROM [annotations]
-//     WHERE user_id <> @UserId 
-//         AND EXISTS 
-//          (SELECT * FROM unfinished_articles 
-//           WHERE unfinished_articles.article_url = annotations.article_url)
-// )
-// SELECT TOP (@ArticleCount) articles_v5.article_url, title, site_name 
-// FROM [articles_v5] INNER JOIN to_finish 
-// ON to_finish.article_url = articles_v5.article_url"
-
-//     use cmd = new SqlCommand(command, conn)
-//     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore    
-//     cmd.Parameters.AddWithValue("@ArticleCount", count) |> ignore    
-
-//     let rdr = cmd.ExecuteReader()
-//     let result = parseArticleData rdr Standard false
-//     conn.Close()
-//     result
-
-// let selectNewArticles articlesToShow connectionString =
-//     // Select all articles in active batches that are not currently being annotated already
-//     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
-//     conn.Open()
-//     let command = "
-// WITH selected_ids AS (
-//     -- articles in the current batch
-//     SELECT article_id FROM [batch_article]
-//     WHERE
-//     article_url NOT IN (
-//             SELECT article_url FROM [annotations]
-//     ) 
-//     AND
-//     batch_id IN (
-//             SELECT id FROM [batch] WHERE active = 1 AND name NOT LIKE 'Training%'
-//     )
-// ),
-// sorted_articles_by_site AS (
-//     SELECT article_url, title, site_name, ROW_NUMBER()
-//     over (
-//         PARTITION BY [site_name] 
-//         order by [id]
-//     ) AS row_num 
-//     FROM articles_v5, selected_ids 
-//     WHERE selected_ids.article_id = articles_v5.id
-// )
-// SELECT TOP (@ArticleCount) article_url, title, site_name FROM sorted_articles_by_site WHERE row_num <= (@ArticleCount) ORDER BY newid()
-// "    
-//     use cmd = new SqlCommand(command, conn)
-//     cmd.Parameters.AddWithValue("@ArticleCount", articlesToShow) |> ignore
-
-//     let rdr = cmd.ExecuteReader()
-//     let result = parseArticleData rdr Standard false
-//     conn.Close()
-//     result
 
 let selectConflictingArticle connectionString userName =
     // Select an article that has two annotations with conflicting number of sources identified
@@ -404,22 +336,6 @@ WHERE articles_v5.article_url = @selected_url
     conn.Close()
     result
 
-
-
-// let loadNextBatchOfArticles connectionString userName articlesToShow =
-//     // 1. Select articles that have annotation by only one user
-//     let articlesUncomplete =    
-//         selectAddAnnotationArticles connectionString userName articlesToShow
-
-//     // 3. Select the remaining articles from the current batch in the articles database
-//     let articlesNew =
-//         let n = articlesToShow - articlesUncomplete.Length
-//         if n > 0 then 
-//             selectNewArticles n connectionString
-//         else    
-//             [||]
-
-//     Array.append articlesUncomplete articlesNew
 
 // Randomize the order of articles as they are shown to the user
 let shuffle articles =
