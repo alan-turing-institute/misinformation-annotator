@@ -174,27 +174,6 @@ let loadArticlesFromFile connectionString = task {
     return articles        
 }
 
-// Training articles!
-let selectTrainingArticles connectionString =
-    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
-    conn.Open()
-    let command = "
-WITH batchid AS (
-    SELECT id FROM [batch] WHERE name LIKE 'Training%' AND active = 1
-),
-selected AS (
-    SELECT article_url FROM [batch_article] 
-    INNER JOIN batchid ON batch_article.batch_id = batchid.id
-)
-SELECT articles_v3.article_url, title, site_name, plain_content FROM [articles_v3] 
-INNER JOIN selected ON articles_v3.article_url = selected.article_url"
-    use cmd = new SqlCommand(command, conn)
-    
-    let rdr = cmd.ExecuteReader()
-    let result = parseArticleData rdr Unfinished false
-    conn.Close()
-    result
-
 let selectUnfinishedArticles connectionString userName =
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
@@ -240,6 +219,34 @@ ON articles_v5.article_url = conflicts.article_url"
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
     cmd.Parameters.AddWithValue("@Threshold", ConflictCountThreshold) |> ignore
+
+    let rdr = cmd.ExecuteReader()
+    let result = parseArticleData rdr NextArticle false
+    conn.Close()
+    result
+
+let selectNextTrainingArticle connectionString userName =
+    // Select article in the training batch that was not annotated by the current user
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "
+WITH user_annotations AS (
+    SELECT article_url, annotation FROM [annotations]
+    WHERE user_id = @UserId
+), 
+training_articles AS (
+    SELECT batch_article_test.article_url 
+    FROM [batch_article_test] 
+        LEFT JOIN user_annotations
+        ON batch_article_test.article_url = user_annotations.article_url
+    WHERE minibatch_id = 0 AND annotation IS NULL
+)
+SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
+FROM [articles_v5] 
+WHERE articles_v5.article_url IN (SELECT article_url FROM training_articles)"  
+
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
     let rdr = cmd.ExecuteReader()
     let result = parseArticleData rdr NextArticle false
@@ -367,7 +374,11 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
         // Main user assignment algorithm
 
         match userData.Proficiency with
-        | Training -> return [||] // TODO
+        | Training -> 
+            printfn "Next training article"
+            // load article from the training batch
+            return 
+                selectNextTrainingArticle connectionString userData.UserName
         
         | User ->
             // standard user
@@ -547,10 +558,13 @@ let IsValidUser ( connectionString : AzureConnection) userName password = task {
         let user = {
             UserName = userData.[1]
             Proficiency = 
-                match userData.[3] with
-                | "Training" -> Training
-                | "User" -> User
-                | "Expert" -> Expert
+                match userData.[4] with // Passed training, i.e. went through the training batch
+                | "No" -> Training
+                | "Yes" ->
+                    match userData.[3] with
+                    | "User" -> User
+                    | "Expert" -> Expert
+                    | _ -> Training
                 | _ -> Training
             Token = ServerCode.JsonWebToken.encode (
                      { UserName = userData.[1] } : ServerTypes.UserRights
