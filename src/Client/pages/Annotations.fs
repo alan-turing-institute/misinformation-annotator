@@ -40,8 +40,9 @@ type Msg =
 type ExternalMsg =
     | ViewArticle of Article
     | NoOp
-    | CacheAllArticles of ArticleList
-    | CacheUnannotated of Article
+    | GetAllArticles 
+    | GetUnannotated 
+    | GetNextArticle
 
 let loadArticles (user: UserData, articleType: ArticleAssignment) =
     promise {
@@ -57,17 +58,17 @@ let loadArticles (user: UserData, articleType: ArticleAssignment) =
         return! Fetch.fetchAs<ArticleList> url props
     }
 
-let loadArticlesCmd user articleType =
-    Browser.console.log("Requesting articles")
-    Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
+// let loadArticlesCmd user articleType =
+//     Browser.console.log("Requesting articles")
+//     Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
 
-let loadSingleArticleCmd user =
-    Browser.console.log("Load next article to be annotated")
-    Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
+// let loadSingleArticleCmd user =
+//     Browser.console.log("Load next article to be annotated")
+//     Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
 
-let loadUnfinishedArticleCmd user =
-    Browser.console.log("Load next article to be annotated")
-    Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
+// let loadUnfinishedArticleCmd user =
+//     Browser.console.log("Load next article to be annotated")
+//     Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
 
 let getResetTime token =
     promise {
@@ -109,55 +110,61 @@ let init (user:UserData, articleList : ArticleList option, toAnnotate : Article 
         | None -> true
         | Some _ -> false
     } |> checkIfFinished,
-      match articleList with 
-      | None -> 
-        Cmd.batch [
-            loadArticlesCmd user PreviouslyAnnotated
-            loadUnfinishedArticleCmd user
-            //loadSingleArticleCmd user
-        ]
-      | Some _ -> Cmd.none
+    //   match articleList with 
+    //   | None -> 
+    //     Cmd.batch [
+    //         loadArticlesCmd user PreviouslyAnnotated
+    //         loadUnfinishedArticleCmd user
+    //         //loadSingleArticleCmd user
+    //     ]
+    //   | Some _ -> 
+        Cmd.none
 
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
     | LoadForUser user ->
         model |> checkIfFinished, Cmd.none, NoOp
 
-    | FetchedArticles annotations ->
-        Browser.console.log("Fetched annotations - adapting model")
-        Browser.console.log(annotations)
-        let annotations = 
-            { annotations with Articles = annotations.Articles  }
-        { model with PreviouslyAnnotated = annotations; Loading = false } |> checkIfFinished, Cmd.none, CacheAllArticles annotations
+    // TODO - actually load articles for user - run external commands!
 
-    | FetchedNextArticle article ->
-        Browser.console.log("Fetched next article to annotate")
-        Browser.console.log(article)
 
-        let article', _ = article.Articles |> List.exactlyOne
-        { model with 
-            CurrentArticle = Some article'; 
-            Loading = false } |> checkIfFinished, 
-        Cmd.ofMsg (SelectArticle article'), 
-        CacheUnannotated article'
+    // | FetchedArticles annotations ->
+    //     Browser.console.log("Fetched annotations - adapting model")
+    //     Browser.console.log(annotations)
+    //     let annotations = 
+    //         { annotations with Articles = annotations.Articles  }
+    //     { model with PreviouslyAnnotated = annotations; Loading = false } |> checkIfFinished, Cmd.none, CacheAllArticles annotations
 
-    | FetchedUnfinishedArticle articles ->
-        Browser.console.log("Fetched unfinished article to annotate")
-        Browser.console.log(articles)
+    // | FetchedNextArticle article ->
+    //     Browser.console.log("Fetched next article to annotate")
+    //     Browser.console.log(article)
 
-        if articles.Articles.Length = 1 then
-            let article = articles.Articles |> List.exactlyOne |> fst
-            { model with 
-                CurrentArticle = Some article
-                Loading = false } |> checkIfFinished, 
-            Cmd.none, 
-            CacheUnannotated article    
-        else
-            { model with
-                CurrentArticle = None
-                Loading = false } |> checkIfFinished,
-            Cmd.none,
-            NoOp            
+    //     let article', _ = article.Articles |> List.exactlyOne
+    //     { model with 
+    //         CurrentArticle = Some article'; 
+    //         Loading = false } |> checkIfFinished, 
+    //     Cmd.ofMsg (SelectArticle article'), 
+    //     //CacheUnannotated article'
+    //     NoOp
+
+    // | FetchedUnfinishedArticle articles ->
+    //     Browser.console.log("Fetched unfinished article to annotate")
+    //     Browser.console.log(articles)
+
+    //     if articles.Articles.Length = 1 then
+    //         let article = articles.Articles |> List.exactlyOne |> fst
+    //         { model with 
+    //             CurrentArticle = Some article
+    //             Loading = false } |> checkIfFinished, 
+    //         Cmd.none, 
+    //         //CacheUnannotated article    
+    //         NoOp
+    //     else
+    //         { model with
+    //             CurrentArticle = None
+    //             Loading = false } |> checkIfFinished,
+    //         Cmd.none,
+    //         NoOp            
 
     | FetchedResetTime datetime ->
         { model with ResetTime = Some datetime } |> checkIfFinished, Cmd.none, NoOp
@@ -171,13 +178,13 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     | SelectArticle a ->
         { model with SelectedArticle = Some a } |> checkIfFinished, Cmd.none, ViewArticle a
 
-    | LoadArticleBatch articleType ->
-        { model with Loading = true } |> checkIfFinished, loadArticlesCmd model.UserInfo articleType, NoOp
+    // | LoadArticleBatch articleType ->
+    //     { model with Loading = true } |> checkIfFinished, loadArticlesCmd model.UserInfo articleType, NoOp
 
     | LoadSingleArticle ->
         model, 
-        loadSingleArticleCmd model.UserInfo,
-        NoOp
+        Cmd.none,
+        GetNextArticle
 
 
 let viewArticleComponent article annotated (dispatch: Msg -> unit) =

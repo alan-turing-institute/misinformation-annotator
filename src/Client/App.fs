@@ -12,6 +12,9 @@ open Elmish.HMR
 open Client.Shared
 open Client.Pages
 open ServerCode.Domain
+open Fetch.Fetch_types
+open ServerCode
+open ServerCode.Domain
 
 JsInterop.importSideEffects "whatwg-fetch"
 JsInterop.importSideEffects "babel-polyfill"
@@ -66,6 +69,36 @@ let saveUserCmd user =
 
 let deleteUserCmd =
     Cmd.ofFunc BrowserLocalStorage.delete "user" (fun _ -> LoggedOut) StorageFailure
+
+
+
+let loadArticles (user: UserData, articleType: ArticleAssignment) =
+    promise {
+        let url = ServerUrls.APIUrls.Annotations
+        let body = toJson (user, articleType)
+        let props =
+            [ RequestProperties.Method HttpMethod.POST
+              Fetch.requestHeaders [
+                HttpRequestHeaders.Authorization ("Bearer " + user.Token)
+                HttpRequestHeaders.ContentType "application/json" ]
+              RequestProperties.Body !^body ]
+
+        return! Fetch.fetchAs<ArticleList> url props
+    }
+
+let loadArticlesCmd user articleType =
+    Browser.console.log("Requesting articles")
+    Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
+
+let loadSingleArticleCmd user =
+    Browser.console.log("Load next article to be annotated")
+    Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
+
+let loadUnfinishedArticleCmd user =
+    Browser.console.log("Load next article to be annotated")
+    Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
+
+
 
 
 let init result =
@@ -128,20 +161,90 @@ let update msg model =
                     Navigation.newUrl (toPath Page.Article) 
                     ]
 
-        | Annotations.ExternalMsg.CacheAllArticles articles ->
+        | Annotations.ExternalMsg.GetAllArticles ->
             { model with 
-                AllArticles = Some articles
-                PageModel = AnnotationsModel m},
+                PageModel = AnnotationsModel m }, 
+            Cmd.batch [
                 Cmd.map AnnotationsMsg cmd
+                loadArticlesCmd model.User.Value PreviouslyAnnotated
+            ]
 
-        | Annotations.ExternalMsg.CacheUnannotated article ->
+        | Annotations.ExternalMsg.GetNextArticle ->
             { model with 
-                ArticleToAnnotate = Some article
-                PageModel = AnnotationsModel m},
+                PageModel = AnnotationsModel m }, 
+            Cmd.batch [
                 Cmd.map AnnotationsMsg cmd
+                loadSingleArticleCmd model.User.Value
+            ]
+        
+        | Annotations.ExternalMsg.GetUnannotated ->
+            { model with 
+                PageModel = AnnotationsModel m }, 
+            Cmd.batch [
+                Cmd.map AnnotationsMsg cmd
+                loadSingleArticleCmd model.User.Value 
+            ]
 
     | AnnotationsMsg _, _ ->
         model, Cmd.none
+
+    | FetchedArticles annotations, _ ->
+        let annotations = 
+            { annotations with Articles = annotations.Articles  }
+        
+        let m, cmd = Annotations.init(model.User.Value, Some annotations, model.ArticleToAnnotate)
+        { model with 
+            AllArticles = Some annotations
+            PageModel = AnnotationsModel m }  ,
+        Cmd.batch [
+            Navigation.newUrl (toPath Page.Annotations)        
+            Cmd.map AnnotationsMsg cmd ]
+
+    | FetchedNextArticle article, _ ->
+        let article', _ = article.Articles |> List.exactlyOne
+
+        let m, cmd = Article.init model.User.Value article'
+        { model with 
+            PageModel = ArticleModel m
+            ArticleToAnnotate = Some article'; 
+            SelectedArticle = Some article'
+            } , 
+        Cmd.batch [
+            Navigation.newUrl (toPath Page.Article)
+            Cmd.map ArticleMsg cmd 
+        ]
+
+    | FetchedUnfinishedArticle articles, _ ->
+        if articles.Articles.Length = 1 then
+            let article = articles.Articles |> List.exactlyOne |> fst
+            let m, cmd = Annotations.init(model.User.Value, model.AllArticles, Some article)
+
+            { model with 
+                ArticleToAnnotate = Some article
+                PageModel = AnnotationsModel m }  ,
+            Cmd.batch [
+                Navigation.newUrl (toPath Page.Annotations)
+                Cmd.map AnnotationsMsg cmd 
+            ]
+        else
+            let m, cmd = Annotations.init(model.User.Value, model.AllArticles, None)
+
+            { model with
+                ArticleToAnnotate = None
+                PageModel = AnnotationsModel m
+                 }  ,
+            Cmd.batch [             
+                Navigation.newUrl (toPath Page.Annotations)
+                Cmd.map AnnotationsMsg cmd ]
+        
+
+    | FetchError e,_ ->
+        Browser.console.log(e.Message)
+        Browser.console.log(e)
+        Browser.console.log(model)
+
+        model, Cmd.none
+
 
     | LoggedIn newUser, _ ->
         let nextPage = Page.Annotations

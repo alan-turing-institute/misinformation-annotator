@@ -25,7 +25,11 @@ type Msg =
     | AnnotationsMsg of Annotations.Msg
     | Logout of unit
     | ArticleMsg of Article.Msg
-   
+    
+    | FetchedArticles of ArticleList
+    | FetchedNextArticle of ArticleList
+    | FetchedUnfinishedArticle of ArticleList
+    | FetchError of exn
 
 // VIEW
 
