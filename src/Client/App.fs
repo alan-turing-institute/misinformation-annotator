@@ -189,14 +189,10 @@ let update msg model =
         let annotations = 
             { annotations with Articles = annotations.Articles  }
         
-        //let m, cmd = Annotations.init(model.User.Value, Some annotations, model.ArticleToAnnotate)
         { model with 
             AllArticles = Some annotations
-            //PageModel = AnnotationsModel m 
             }  ,
         Cmd.batch [
-            //Navigation.newUrl (toPath Page.Annotations)        
-            //Cmd.map AnnotationsMsg cmd
             Cmd.map AnnotationsMsg (Cmd.ofMsg (Annotations.FetchedArticles annotations)) ]
 
     | FetchedNextArticle article, _ ->
@@ -218,29 +214,20 @@ let update msg model =
         Browser.console.log("Fetched unfinished article from database")
         if articles.Articles.IsEmpty then
             Browser.console.log("No unfinished articles found")
-            //let m, cmd = Annotations.init(model.User.Value, model.AllArticles, None)
 
             { model with
                 ArticleToAnnotate = None
-                //PageModel = AnnotationsModel m
                  }  ,
-            // Cmd.batch [             
-            //     Navigation.newUrl (toPath Page.Annotations)
-            //     Cmd.map AnnotationsMsg cmd ]
             Cmd.none
         else
             Browser.console.log("Forwarding unfinished article")
             let article = articles.Articles |> List.head |> fst
-            //let m, cmd = Annotations.init(model.User.Value, model.AllArticles, Some article)
 
             { model with 
                 ArticleToAnnotate = Some article
-                //PageModel = AnnotationsModel m 
                 }  ,
             Cmd.batch [
-                //Navigation.newUrl (toPath Page.Annotations)
                 Cmd.map AnnotationsMsg (Cmd.ofMsg (Annotations.FetchedUnfinishedArticle articles))
-                //Cmd.map AnnotationsMsg cmd 
             ]
 
         
@@ -275,7 +262,6 @@ let update msg model =
             { model with PageModel = ArticleModel m' }, Cmd.map ArticleMsg cmd
 
         | Article.ExternalMsg.MarkAsAnnotated id ->
-            // TODO 
             // a) Newly annotated article is a new article 
             // b) Newly annotated article is an edit of an older article
 

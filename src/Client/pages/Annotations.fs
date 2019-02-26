@@ -28,13 +28,12 @@ type Model =
 
 /// The different messages processed when interacting with the wish list
 type Msg =
-    | LoadForUser of string
+    | LoadForUser
     | FetchedArticles of ArticleList
     | FetchedNextArticle of ArticleList
     | FetchedResetTime of DateTime
     | FetchError of exn
     | SelectArticle of Article
-    | LoadArticleBatch of ArticleAssignment
     | LoadSingleArticle
     | FetchedUnfinishedArticle of ArticleList
 
@@ -57,18 +56,6 @@ let loadArticles (user: UserData, articleType: ArticleAssignment) =
 
         return! Fetch.fetchAs<ArticleList> url props
     }
-
-// let loadArticlesCmd user articleType =
-//     Browser.console.log("Requesting articles")
-//     Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
-
-// let loadSingleArticleCmd user =
-//     Browser.console.log("Load next article to be annotated")
-//     Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
-
-// let loadUnfinishedArticleCmd user =
-//     Browser.console.log("Load next article to be annotated")
-//     Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
 
 let getResetTime token =
     promise {
@@ -112,22 +99,15 @@ let init (user:UserData, articleList : ArticleList option, toAnnotate : Article 
     } |> checkIfFinished,
       match articleList with 
       | None -> 
-        // Cmd.batch [
-        //     loadArticlesCmd user PreviouslyAnnotated
-        //     loadUnfinishedArticleCmd user
-        //     //loadSingleArticleCmd user
-        // ]
-        Cmd.ofMsg (LoadForUser user.UserName)
+        Cmd.ofMsg LoadForUser
       | Some _ -> 
         Cmd.none
 
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
-    | LoadForUser user ->
-        Browser.console.log("Load for user!")
-        { model with Loading = true } |> checkIfFinished, Cmd.none, GetAllArticles
-
-    // TODO - actually load articles for user - run external commands!
+    | LoadForUser ->
+        Browser.console.log("Load for user")
+        { model with Model.Loading = true } |> checkIfFinished, Cmd.none, GetAllArticles
 
     | FetchedArticles annotations ->
         Browser.console.log("Fetched annotations - adapting model")
@@ -145,7 +125,6 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
             CurrentArticle = Some article'; 
             Loading = false } |> checkIfFinished, 
         Cmd.ofMsg (SelectArticle article'), 
-        //CacheUnannotated article'
         NoOp
 
     | FetchedUnfinishedArticle articles ->
@@ -164,7 +143,6 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                 CurrentArticle = Some article
                 Loading = false } |> checkIfFinished, 
             Cmd.none, 
-            //CacheUnannotated article    
             NoOp
 
     | FetchedResetTime datetime ->
@@ -178,9 +156,6 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
        
     | SelectArticle a ->
         { model with SelectedArticle = Some a } |> checkIfFinished, Cmd.none, ViewArticle a
-
-    // | LoadArticleBatch articleType ->
-    //     { model with Loading = true } |> checkIfFinished, loadArticlesCmd model.UserInfo articleType, NoOp
 
     | LoadSingleArticle ->
         model, 
@@ -234,7 +209,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                           [ str "Next article to annotate" ]
                     ]
                  else div [] [
-                  // TODO - display unfinished articles
+                  
                           h3 [] [ str "To annotate" ]
                           table [ClassName "table table-striped table-hover"] [
                                     thead [] [
