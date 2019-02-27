@@ -12,11 +12,10 @@ type Login =
       Password   : string
       PasswordId : Guid }
 
-
 type UserProficiency =
-    | Training
     | User
     | Expert
+    | Training of string
     
 type UserData =
   { UserName : string

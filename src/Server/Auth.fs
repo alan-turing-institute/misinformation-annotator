@@ -12,7 +12,7 @@ let createUserData (login : Domain.Login) =
     {
         UserName = login.UserName
         // TODO: fetch user level from database
-        Proficiency = UserProficiency.Training
+        Proficiency = UserProficiency.User
         Token    =
             ServerCode.JsonWebToken.encode (
                 { UserName = login.UserName } : ServerTypes.UserRights
@@ -46,3 +46,12 @@ let requiresJwtTokenForAPI f : HttpHandler =
             | Some token -> f token
             | None -> invalidToken
         | None -> missingToken) next ctx
+
+let markUserPassedTraining (markUserPassedTrainingDB : UserData -> Task<bool>) : HttpHandler  =
+    fun (next: HttpFunc) (ctx: HttpContext) ->
+        task {
+            let! user = ctx.BindJsonAsync<Domain.UserData>()
+            let! result = markUserPassedTrainingDB user
+            return! ctx.WriteJsonAsync(result)
+        }    
+        

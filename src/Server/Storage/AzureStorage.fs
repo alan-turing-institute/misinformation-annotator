@@ -374,7 +374,7 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
         // Main user assignment algorithm
 
         match userData.Proficiency with
-        | Training -> 
+        | Training(_)-> 
             printfn "Next training article"
             // load article from the training batch
             return 
@@ -501,7 +501,7 @@ let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
 
     let rdr = cmd.ExecuteReader()
     let result = 
-        [| while rdr.Read() do 
+        [| while rdr.Read() do  
             let text = rdr.GetString(0)
             let ann = text |> FableJson.ofJson<ArticleAnnotations>
             yield Some ann |]
@@ -536,42 +536,42 @@ let getLastResetTime connectionString = task {
 
 
 let IsValidUser ( connectionString : AzureConnection) userName password = task {
-    let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
-    let container = blobClient.GetContainerReference("sample-crawl")
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
 
-    let! text = task {
-        let blob = container.GetBlockBlobReference ("users.csv")
-        return! blob.DownloadTextAsync()
-    }
+    let command = "SELECT * FROM [users] WHERE username = @UserId AND password = @Password"
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
+    cmd.Parameters.AddWithValue("@Password", password) |> ignore
 
-    let data = 
-        text.Split '\n'
-        |> fun t -> t.[1..] // split header
-        |> Array.filter (fun line -> line <> "")
-        |> Array.map (fun line -> line.Split ',' |> Array.map (fun s -> s.Trim()))
-        |> Array.filter (fun line ->
-            line.[1] = userName && line.[2] = password)
-    if data.Length <> 1 then 
+    let rdr = cmd.ExecuteReader()
+    let result = 
+        [| while rdr.Read() do 
+            let proficiency = rdr.GetString(3)
+            let user = {
+                UserName = rdr.GetString(0)
+                Proficiency = 
+                    match rdr.GetInt32(4) with // Passed training, i.e. went through the training batch
+                    | 0 -> Training(proficiency)
+                    | 1 ->
+                        match proficiency with
+                        | "User" -> User
+                        | "Expert" -> Expert
+                        | _ -> Training(proficiency)
+                    | _ -> Training(proficiency)
+                Token = ServerCode.JsonWebToken.encode (
+                         { UserName = rdr.GetString(0) } : ServerTypes.UserRights
+                        )            
+                }    
+            yield user |]  
+
+    conn.Close()
+    if result.Length = 0 then 
         return None
-    else    
-        let userData = data |> Array.exactlyOne
-        let user = {
-            UserName = userData.[1]
-            Proficiency = 
-                match userData.[4] with // Passed training, i.e. went through the training batch
-                | "No" -> Training
-                | "Yes" ->
-                    match userData.[3] with
-                    | "User" -> User
-                    | "Expert" -> Expert
-                    | _ -> Training
-                | _ -> Training
-            Token = ServerCode.JsonWebToken.encode (
-                     { UserName = userData.[1] } : ServerTypes.UserRights
-                    )            
-        }    
-        return Some user
-}
+    else
+        return (Some result.[0])
+
+    }
 
 let FlagArticle ( connectionString : AzureConnection) (flaggedArticle: Domain.FlaggedArticle) = task {
     let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
@@ -585,4 +585,20 @@ let FlagArticle ( connectionString : AzureConnection) (flaggedArticle: Domain.Fl
     let! result = blob.UploadTextAsync(text')
     let! exists = blob.ExistsAsync()
     return exists
+}
+
+let UserPassedTraining ( connectionString : AzureConnection)  (user: Domain.UserData) = task {
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+
+    let command = "UPDATE [users]
+    SET passed_training = 1 
+    WHERE username = @UserId"  
+
+    let cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", user.UserName) |> ignore
+
+    let result = cmd.ExecuteNonQuery() 
+    conn.Close()
+    if result = 1 then return true else return false
 }
