@@ -31,6 +31,8 @@ type Msg =
     | FetchedUnfinishedArticle of ArticleList
     | FetchError of exn
 
+    | UserPassedTraining of bool
+
 // VIEW
 
 open Fable.Helpers.React

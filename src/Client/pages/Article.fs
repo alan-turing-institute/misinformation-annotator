@@ -1042,4 +1042,4 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                 else 
                     None)
 
-        { model with SourceInfo = sources }, Cmd.none, NoOp
+        { model with SourceInfo = sources } |> isCompleted, Cmd.none, NoOp

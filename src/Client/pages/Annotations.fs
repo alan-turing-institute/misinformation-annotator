@@ -163,9 +163,10 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         GetNextArticle
 
 
-let viewArticleComponent article annotated (dispatch: Msg -> unit) =
+let viewArticleComponent idx article annotated (dispatch: Msg -> unit) =
   tr [ OnClick (fun _ -> dispatch (SelectArticle article)) 
        ClassName (if annotated then "annotated" else "to-annotate")] [
+    td [] [ str idx ]
     td [] [
             yield buttonLink "" (fun _ -> dispatch (SelectArticle article)) 
                     [ str (if article.Title.Length > 80 then article.Title.[0..79] + "..." else article.Title) ] 
@@ -214,6 +215,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                           table [ClassName "table table-striped table-hover"] [
                                     thead [] [
                                             tr [] [
+                                                th [] []
                                                 th [] [str "Title"]
                                                 th [] [str ""]
                                         ]
@@ -222,7 +224,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
                                         match model.CurrentArticle with
                                         | None -> []
                                         | Some article ->
-                                            [viewArticleComponent article false dispatch]
+                                            [viewArticleComponent ">" article false dispatch]
                                     )
                                 ]
                  ]
@@ -241,8 +243,8 @@ let view (model:Model) (dispatch: Msg -> unit) =
                             ]
                             tbody [] (
                                 model.PreviouslyAnnotated.Articles
-                                |> List.map(fun (article, annotated) ->
-                                    viewArticleComponent article annotated dispatch
+                                |> List.mapi(fun idx (article, annotated) ->
+                                    viewArticleComponent (string (idx+1)) article annotated dispatch
                                     )
                                 //
                             )

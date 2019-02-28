@@ -98,7 +98,24 @@ let loadUnfinishedArticleCmd user =
     Browser.console.log("Load next article to be annotated")
     Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
 
+let userPassedTraining user =
+    promise {
+        let url = ServerUrls.APIUrls.User
+        let body = toJson (user)
+        let props =
+            [ RequestProperties.Method HttpMethod.POST
+              Fetch.requestHeaders [
+                HttpRequestHeaders.Authorization ("Bearer " + user.Token)
+                HttpRequestHeaders.ContentType "application/json" ]
+              RequestProperties.Body !^body ]
 
+        return! Fetch.fetchAs<bool> url props
+    }
+
+
+let userPassedTrainingCmd user =
+    Browser.console.log("User passed training batch of articles")
+    Cmd.ofPromise userPassedTraining user UserPassedTraining StorageFailure
 
 
 let init result =
@@ -197,18 +214,58 @@ let update msg model =
 
     | FetchedNextArticle article, _ ->
         Browser.console.log("Fetched next article to be annotated")
-        let article', _ = article.Articles |> List.exactlyOne
 
-        let m, cmd = Article.init model.User.Value article'
-        { model with 
-            PageModel = ArticleModel m
-            ArticleToAnnotate = Some article'; 
-            SelectedArticle = Some article'
-            } , 
-        Cmd.batch [
-            Navigation.newUrl (toPath Page.Article)
-            Cmd.map ArticleMsg cmd 
-        ]
+        if article.Articles.Length > 0 then
+            let article', _ = article.Articles |> List.exactlyOne
+
+            let m, cmd = Article.init model.User.Value article'
+            { model with 
+                PageModel = ArticleModel m
+                ArticleToAnnotate = Some article'; 
+                SelectedArticle = Some article'
+                } , 
+            Cmd.batch [
+                Navigation.newUrl (toPath Page.Article)
+                Cmd.map ArticleMsg cmd 
+            ]
+        else
+            // no articles returned
+            // possible causes:
+            // - Finished training
+            // - No articles left
+            // - Error
+
+            if model.User.IsSome && 
+                (model.User.Value.Proficiency = Training("Expert") ||
+                 model.User.Value.Proficiency = Training("User")) then
+                // user finished training batch
+
+                model, 
+                userPassedTrainingCmd model.User.Value
+            else
+                Browser.console.log("No articles to show")
+                model, Cmd.none
+                
+
+    | UserPassedTraining(success), _ ->
+        if success then 
+            let proficiency = 
+                match model.User.Value.Proficiency with
+                | Training(x) ->
+                    match x with
+                    | "User" -> User
+                    | "Expert" -> Expert
+                    | _ -> User
+                | _ -> User
+
+            let newUserValue = {model.User.Value with Proficiency = proficiency}
+            { model with
+                    User = Some(newUserValue)
+                    }, 
+            loadSingleArticleCmd newUserValue
+        else
+            Browser.console.log("Cannot mark user as 'passed training'")
+            model, Cmd.none
 
     | FetchedUnfinishedArticle articles, _ ->
         Browser.console.log("Fetched unfinished article from database")
