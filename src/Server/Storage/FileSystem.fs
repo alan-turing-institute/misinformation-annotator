@@ -53,7 +53,7 @@ let getArticlesFromDB (userData : Domain.UserData) (articleType : Domain.Article
               ID = filename 
               Text = None
               SourceWebsite = "Just testing"
-              AssignmentType = Standard }, ann)
+              AssignmentType = NextArticle }, ann)
         |> List.ofArray
     }
 
@@ -68,7 +68,7 @@ let loadArticleFromDB link =
         |> Array.map (fun s -> SimpleHtmlText s)
         |> List.ofArray
 
-    { Title = heading; Text = Some parsedContents; ID = link; SourceWebsite = "Just testing" ; AssignmentType = Standard }
+    { Title = heading; Text = Some parsedContents; ID = link; SourceWebsite = "Just testing" ; AssignmentType = NextArticle }
 
 
 let loadArticleAnnotationsFromDB articleId userName : ArticleAnnotations option =
@@ -86,7 +86,7 @@ let IsValidUser userName password =
         Some (
           {
             UserName = userName
-            Proficiency = UserProficiency.Training
+            Proficiency = UserProficiency.User
             Token =
                 ServerCode.JsonWebToken.encode (
                     { UserName = userName } : ServerTypes.UserRights

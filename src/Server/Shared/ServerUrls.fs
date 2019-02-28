@@ -21,3 +21,5 @@ module APIUrls =
   let Answers = "/api/answers/"
   [<Literal>]
   let ArticleError = "/api/article_err/"
+  [<Literal>]
+  let User = "/api/user/"

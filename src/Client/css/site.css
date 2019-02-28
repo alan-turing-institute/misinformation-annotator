@@ -179,6 +179,10 @@ body {
     margin: 10px 10px 10px 10px;
 }
 
+.btn:focus {
+    outline: none;
+}
+
 .span { opacity: 0.7 }
 
 .anon { border-bottom: 3px solid; }

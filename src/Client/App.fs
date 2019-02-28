@@ -12,6 +12,9 @@ open Elmish.HMR
 open Client.Shared
 open Client.Pages
 open ServerCode.Domain
+open Fetch.Fetch_types
+open ServerCode
+open ServerCode.Domain
 
 JsInterop.importSideEffects "whatwg-fetch"
 JsInterop.importSideEffects "babel-polyfill"
@@ -34,7 +37,7 @@ let urlUpdate (result:Page option) (model: Model) =
     | Some Page.Annotations ->
         match model.User with
         | Some user ->
-            let m, cmd = Annotations.init(user, model.AllArticles)
+            let m, cmd = Annotations.init(user, model.AllArticles, model.ArticleToAnnotate)
             { model with PageModel = AnnotationsModel m }, Cmd.map AnnotationsMsg cmd
         | None ->
             model, Cmd.ofMsg (Logout ())
@@ -68,17 +71,68 @@ let deleteUserCmd =
     Cmd.ofFunc BrowserLocalStorage.delete "user" (fun _ -> LoggedOut) StorageFailure
 
 
+
+let loadArticles (user: UserData, articleType: ArticleAssignment) =
+    promise {
+        let url = ServerUrls.APIUrls.Annotations
+        let body = toJson (user, articleType)
+        let props =
+            [ RequestProperties.Method HttpMethod.POST
+              Fetch.requestHeaders [
+                HttpRequestHeaders.Authorization ("Bearer " + user.Token)
+                HttpRequestHeaders.ContentType "application/json" ]
+              RequestProperties.Body !^body ]
+
+        return! Fetch.fetchAs<ArticleList> url props
+    }
+
+let loadArticlesCmd user articleType =
+    Browser.console.log("Requesting articles")
+    Cmd.ofPromise loadArticles (user, articleType) FetchedArticles FetchError
+
+let loadSingleArticleCmd user =
+    Browser.console.log("Load next article to be annotated")
+    Cmd.ofPromise loadArticles (user, NextArticle) FetchedNextArticle FetchError
+
+let loadUnfinishedArticleCmd user =
+    Browser.console.log("Load next article to be annotated")
+    Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
+
+let userPassedTraining user =
+    promise {
+        let url = ServerUrls.APIUrls.User
+        let body = toJson (user)
+        let props =
+            [ RequestProperties.Method HttpMethod.POST
+              Fetch.requestHeaders [
+                HttpRequestHeaders.Authorization ("Bearer " + user.Token)
+                HttpRequestHeaders.ContentType "application/json" ]
+              RequestProperties.Body !^body ]
+
+        return! Fetch.fetchAs<bool> url props
+    }
+
+
+let userPassedTrainingCmd user =
+    Browser.console.log("User passed training batch of articles")
+    Cmd.ofPromise userPassedTraining user UserPassedTraining StorageFailure
+
+
 let init result =
     let user = loadUser ()
     let stateJson: string option = !!Browser.window?__INIT_MODEL__
     match stateJson, result with
     | Some json, Some Page.Home ->
+        Browser.console.log("Loading previous model")
         let model: Model = ofJson json
-        { model with User = user }, Cmd.none
+        { model with User = user }, 
+        Cmd.none
+
     | _ ->
         let model =
             { User = user
               SelectedArticle = None
+              ArticleToAnnotate = None
               AllArticles = None
               PageModel = HomePageModel }
 
@@ -127,14 +181,121 @@ let update msg model =
                     Navigation.newUrl (toPath Page.Article) 
                     ]
 
-        | Annotations.ExternalMsg.CacheAllArticles articles ->
+        | Annotations.ExternalMsg.GetAllArticles ->
             { model with 
-                AllArticles = Some articles
-                PageModel = AnnotationsModel m},
+                PageModel = AnnotationsModel m }, 
+            Cmd.batch [
                 Cmd.map AnnotationsMsg cmd
+                loadArticlesCmd model.User.Value PreviouslyAnnotated
+                loadUnfinishedArticleCmd model.User.Value
+            ]
+
+        | Annotations.ExternalMsg.GetNextArticle ->
+            { model with 
+                PageModel = AnnotationsModel m }, 
+            Cmd.batch [
+                Cmd.map AnnotationsMsg cmd
+                loadSingleArticleCmd model.User.Value
+            ]
 
     | AnnotationsMsg _, _ ->
         model, Cmd.none
+
+    | FetchedArticles annotations, _ ->
+        Browser.console.log("Fetched previously annotated articles from database")
+        let annotations = 
+            { annotations with Articles = annotations.Articles  }
+        
+        { model with 
+            AllArticles = Some annotations
+            }  ,
+        Cmd.batch [
+            Cmd.map AnnotationsMsg (Cmd.ofMsg (Annotations.FetchedArticles annotations)) ]
+
+    | FetchedNextArticle article, _ ->
+        Browser.console.log("Fetched next article to be annotated")
+
+        if article.Articles.Length > 0 then
+            let article', _ = article.Articles |> List.exactlyOne
+
+            let m, cmd = Article.init model.User.Value article'
+            { model with 
+                PageModel = ArticleModel m
+                ArticleToAnnotate = Some article'; 
+                SelectedArticle = Some article'
+                } , 
+            Cmd.batch [
+                Navigation.newUrl (toPath Page.Article)
+                Cmd.map ArticleMsg cmd 
+            ]
+        else
+            // no articles returned
+            // possible causes:
+            // - Finished training
+            // - No articles left
+            // - Error
+
+            if model.User.IsSome && 
+                (model.User.Value.Proficiency = Training("Expert") ||
+                 model.User.Value.Proficiency = Training("User")) then
+                // user finished training batch
+
+                model, 
+                userPassedTrainingCmd model.User.Value
+            else
+                Browser.console.log("No articles to show")
+                model, Cmd.none
+                
+
+    | UserPassedTraining(success), _ ->
+        if success then 
+            let proficiency = 
+                match model.User.Value.Proficiency with
+                | Training(x) ->
+                    match x with
+                    | "User" -> User
+                    | "Expert" -> Expert
+                    | _ -> User
+                | _ -> User
+
+            let newUserValue = {model.User.Value with Proficiency = proficiency}
+            { model with
+                    User = Some(newUserValue)
+                    }, 
+            loadSingleArticleCmd newUserValue
+        else
+            Browser.console.log("Cannot mark user as 'passed training'")
+            model, Cmd.none
+
+    | FetchedUnfinishedArticle articles, _ ->
+        Browser.console.log("Fetched unfinished article from database")
+        if articles.Articles.IsEmpty then
+            Browser.console.log("No unfinished articles found")
+
+            { model with
+                ArticleToAnnotate = None
+                 }  ,
+            Cmd.none
+        else
+            Browser.console.log("Forwarding unfinished article")
+            let article = articles.Articles |> List.head |> fst
+
+            { model with 
+                ArticleToAnnotate = Some article
+                }  ,
+            Cmd.batch [
+                Cmd.map AnnotationsMsg (Cmd.ofMsg (Annotations.FetchedUnfinishedArticle articles))
+            ]
+
+        
+
+    | FetchError e,_ ->
+        Browser.console.log(e.Message)
+        Browser.console.log(e)
+        Browser.console.log(model)
+
+        model, Cmd.none
+
 
     | LoggedIn newUser, _ ->
         let nextPage = Page.Annotations
@@ -158,65 +319,55 @@ let update msg model =
             { model with PageModel = ArticleModel m' }, Cmd.map ArticleMsg cmd
 
         | Article.ExternalMsg.MarkAsAnnotated id ->
-            let model' = 
+            // a) Newly annotated article is a new article 
+            // b) Newly annotated article is an edit of an older article
+
+            match model.ArticleToAnnotate with
+            | Some a -> 
+                if a.ID = id then 
+                    let model' = 
+                      { model with 
+                          AllArticles = 
+                            // new article was annotated
+                            model.AllArticles
+                            |> Option.map (fun aa -> 
+                                { aa with Articles = (a, true)::aa.Articles })
+                          ArticleToAnnotate = None }
+                    { model' with PageModel = ArticleModel m' }, 
+                    Cmd.map ArticleMsg cmd
+                else
+                    // the annotated article is an older article - no need to do anything
+                    // because the article is already marked as annotated
+                    { model with PageModel = ArticleModel m' },
+                    Cmd.map ArticleMsg cmd
+
+            | None ->
+                // the annotated article is an older article - no need to do anything
+                // because the article is already marked as annotated
+                { model with PageModel = ArticleModel m' },
+                Cmd.map ArticleMsg cmd
+
+
+        | Article.ExternalMsg.GetNextArticle ->
+            match model.ArticleToAnnotate with
+            | None -> 
+                { model with    
+                    PageModel = ArticleModel m' }, 
+                Cmd.batch [
+                    Cmd.map ArticleMsg cmd
+                    loadSingleArticleCmd model.User.Value
+                ]
+            | Some(article) ->
+                let m'', cmd' = Article.init model.User.Value article
+
                 { model with 
-                   AllArticles = 
-                    model.AllArticles 
-                    |> Option.map (fun aa ->
-                        { aa with 
-                            Articles = 
-                              aa.Articles
-                              |> List.map (fun (a, isAnnotated) -> 
-                                  if a.ID = id then (a, true) else (a, isAnnotated))})}
-            { model' with PageModel = ArticleModel m' }, 
-            Cmd.map ArticleMsg cmd
-
-        | Article.ExternalMsg.NextArticle id ->
-            Browser.console.log("Going to the next article...")
-            // mark current article as annotated 
-            let model' = 
-                { model with 
-                   AllArticles = 
-                    model.AllArticles 
-                    |> Option.map (fun aa ->
-                        { aa with 
-                            Articles = 
-                              aa.Articles
-                              |> List.map (fun (a, isAnnotated) -> 
-                                  if a.ID = id then (a, true) else (a, isAnnotated))})}
-
-            // find the next article
-            let nextIdx = 
-                match model.AllArticles with
-                | None -> None
-                | Some allArticles ->
-                    allArticles.Articles
-                    |> List.findIndex (fun (a,_) -> a.ID = id)
-                    |> fun i -> if i+1 = allArticles.Articles.Length then None else Some(i+1)
-
-            // Create next article model
-            match nextIdx with
-            | Some nextIdx' ->
-                let m'', cmd' = Article.init m'.User (model.AllArticles.Value.Articles.[nextIdx'] |> fst)
-
-                { model' with
                     PageModel = ArticleModel m''
-                    SelectedArticle = Some (model.AllArticles.Value.Articles.[nextIdx'] |> fst)
-                 }, 
+                    SelectedArticle = Some article
+                    } , 
                 Cmd.batch [
-                        Cmd.map ArticleMsg cmd'
-                        Navigation.newUrl (toPath Page.Article) 
-                        ]
-
-            | None ->    
-                let m, cmd = Annotations.init(model'.User.Value, model.AllArticles)
-                { model' with 
-                    PageModel = AnnotationsModel m },
-                Cmd.batch [
-                    Cmd.map AnnotationsMsg cmd
-                    Navigation.newUrl (toPath Page.Annotations)
-                ]                
-
+                    Navigation.newUrl (toPath Page.Article)
+                    Cmd.map ArticleMsg cmd' 
+                ] 
 
 
     | ArticleMsg msg, _ ->

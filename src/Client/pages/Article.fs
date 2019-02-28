@@ -41,15 +41,14 @@ type Model = {
     Completed : bool
     Submitted : bool option
     FlaggedParsingErrors : bool
+    Loading : bool
 }
 
 type Msg = 
-    | View
     | EditAnnotations
     | FetchedArticle of Article * ArticleAnnotations option
     | FetchError of exn
     | SubmitError of exn
-    | FetchArticle
     | TextSelected of (SourceId *Selection) 
     | MentionsSources of ArticleSourceType
     | HighlightSource of SourceId
@@ -74,7 +73,7 @@ type Msg =
 
 type ExternalMsg = 
     | NoOp    
-    | NextArticle of string // pass the link to the current article
+    | GetNextArticle 
     | MarkAsAnnotated of string // mark current article as annotated
 
 //==================================================
@@ -202,6 +201,7 @@ let init (user:UserData) (article: Article)  =
       StartedEditing = DateTime.Now
       Completed = false
       FlaggedParsingErrors = false
+      Loading = true
       }, 
     fetchArticleCmd article user
 
@@ -653,114 +653,126 @@ let viewArticleElement  (element: SimpleHtmlNode) (elementType : ArticlePageElem
 
 let view (model:Model) (dispatch: Msg -> unit) : ReactElement list =
   [
-    div [ ClassName "col-md-10"] [
-      div [ ClassName "row row-height" ] [
-       yield 
-        div [ 
-          ClassName "container col-md-6 left"
-          OnMouseDown (fun e -> 
-            let target = e.target |> unbox<Browser.HTMLButtonElement>
-            if not (target.classList.contains "delete-highlight-btn") then
-              match model.ShowDeleteSelection with
-              | Some _ -> e.preventDefault()
-              | None -> ()
-              dispatch RemoveDeleteButton
-            else ()) ] [
-          yield h1 [] [ str (model.Heading) ]
-          yield h4 [] [ str (model.SourceWebsite)]
-          yield 
-            div [ ClassName "article" ] [
-              div [ ClassName "article-highlights container col-sm-12" ] 
-                // text with highlights at the bottom
-                ( model.Text 
-                 |> List.choose (fun element -> viewArticleElement element HighlightedText model dispatch)
-                 |> List.concat
-                  )
-              div [ ClassName "article-text container col-sm-12" ] 
-                // text without highlights and for highlighting
-                ( model.Text 
-                 |> List.choose (fun element -> viewArticleElement element BaseText model dispatch)
-                 |> List.concat
-                  )
-            ]
-          yield hr []
-          yield br [] 
-          yield br []
-          yield 
-            button [ (if not model.FlaggedParsingErrors then 
-                        OnClick (fun _ -> dispatch IncorrectlyParsed) 
-                      else OnClick (fun _ -> ()))
-                     ClassName "btn btn-link .small" ] 
-                   [ (if not model.FlaggedParsingErrors then
-                        str "Garbled text? Flag article as incorrectly parsed."
-                      else 
-                        str "Article flagged as incorrectly parsed.") ]
+   (if model.Loading then
+       div [] [
+         div [ ClassName "body" ] [
+             img [ HTMLAttr.Src "Images/Double Ring-1.7s-200px.gif" ] 
          ]
+    //            h5 [] [ str "Loading articles..."]
+         div [ ClassName "bottom" ] [ a [ HTMLAttr.Href "https://loading.io/spinner/double-rignt/"] [ str "Spinner by loading.io"] ]
+       ]
+     else
 
-       yield div [ ClassName "container col-md-6 right" ] [
-         div [ ClassName "questionnaire w-100"] [
-          match model.Submitted with
-          | Some true ->
-            yield h5 [] [ str "Submitted" ]
-            yield button [ OnClick (fun _ -> dispatch GoToNextArticle)
-                           ClassName "btn btn-success" ]
-                         [ str "Go to next article" ]
-            yield button [ OnClick (fun _ -> dispatch EditAnnotations )
-                           ClassName "btn btn-light" ] 
-                          [ str "Edit annotations" ]
-          | Some false | None ->              
-            yield h4 [] [ str "Does the article mention any sources?" ]
-            yield button [ 
-                OnClick (fun _ -> dispatch (MentionsSources Sourced)) 
-                (match model.MentionsSources with
-                    | Some Sourced -> ClassName "btn btn-primary" 
-                    | Some _ -> ClassName "btn btn-disabled"
-                    | None -> ClassName "btn btn-light") ]
-                [ str "Yes" ]
-            yield button [ 
-                (match model.MentionsSources with
-                  | Some Unsourced -> ClassName "btn btn-primary" 
-                  | Some _ -> ClassName "btn btn-disabled"
-                  | None -> ClassName "btn btn-light")
-                OnClick (fun _ -> dispatch (MentionsSources Unsourced)) ]
-                [ str "No" ]
-            yield button [ 
-                (match model.MentionsSources with
-                  | Some NotRelevant -> ClassName "btn btn-primary"
-                  | Some _ -> ClassName "btn btn-disabled"
-                  | None -> ClassName "btn btn-light")
-                OnClick (fun _ -> dispatch (MentionsSources NotRelevant)) ]
-                [ str "Mark as not relevant" ]
-
-            match model.MentionsSources with
-              | None | Some Unsourced | Some NotRelevant ->
-                ()
-              | Some Sourced ->
-                 for i in 0..model.SourceInfo.Length-1 do
-                      yield viewAddSource model i dispatch
-                      
-                 yield
-                   div [ClassName "row"] [     
-                     button 
-                      [ ClassName "btn btn-primary"
-                        OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
-                      [ str "+ Add additional source"]
-                   ]
-            yield 
-                div [] [
-                    yield hr []
-                    yield button 
-                        [ OnClick (fun _ -> dispatch (SubmitAnnotations))
-                          (if model.Completed then ClassName "btn btn-success" 
-                           else ClassName "btn btn-disabled") ] 
-                        [ str "Submit" ]
-                    if model.Submitted = Some false then
-                        yield span [] [str "Cannot submit - please contact the admin."]
+       div [ ClassName "col-md-10"] [
+          div [ ClassName "row row-height" ] [
+           yield 
+            div [ 
+              ClassName "container col-md-6 left"
+              OnMouseDown (fun e -> 
+                let target = e.target |> unbox<Browser.HTMLButtonElement>
+                if not (target.classList.contains "delete-highlight-btn") then
+                  match model.ShowDeleteSelection with
+                  | Some _ -> e.preventDefault()
+                  | None -> ()
+                  dispatch RemoveDeleteButton
+                else ()) ] [
+              yield h1 [] [ str (model.Heading) ]
+              yield h4 [] [ str (model.SourceWebsite)]
+              yield 
+                div [ ClassName "article" ] [
+                  div [ ClassName "article-highlights container col-sm-12" ] 
+                    // text with highlights at the bottom
+                    ( model.Text 
+                     |> List.choose (fun element -> viewArticleElement element HighlightedText model dispatch)
+                     |> List.concat
+                      )
+                  div [ ClassName "article-text container col-sm-12" ] 
+                    // text without highlights and for highlighting
+                    ( model.Text 
+                     |> List.choose (fun element -> viewArticleElement element BaseText model dispatch)
+                     |> List.concat
+                      )
                 ]
-        ]
-       ]
-       ]
-      ]
+              yield hr []
+              yield br [] 
+              yield br []
+              yield 
+                button [ (if not model.FlaggedParsingErrors then 
+                            OnClick (fun _ -> dispatch IncorrectlyParsed) 
+                          else OnClick (fun _ -> ()))
+                         ClassName "btn btn-link .small" ] 
+                       [ (if not model.FlaggedParsingErrors then
+                            str "Garbled text? Flag article as incorrectly parsed."
+                          else 
+                            str "Article flagged as incorrectly parsed.") ]
+             ]
+
+           yield div [ ClassName "container col-md-6 right" ] [
+             div [ ClassName "questionnaire w-100"] [
+              match model.Submitted with
+              | Some true ->
+                yield h5 [] [ str "Submitted" ]
+                yield button [ OnClick (fun _ -> dispatch GoToNextArticle)
+                               ClassName "btn btn-success" ]
+                             [ str "Go to next article" ]
+                yield button [ OnClick (fun _ -> dispatch EditAnnotations )
+                               ClassName "btn btn-light" ] 
+                              [ str "Edit annotations" ]
+              | Some false | None ->              
+                yield h4 [] [ str "Does the article mention any sources?" ]
+                yield button [ 
+                    OnClick (fun _ -> dispatch (MentionsSources Sourced)) 
+                    (match model.MentionsSources with
+                        | Some Sourced -> ClassName "btn btn-primary" 
+                        | Some _ -> ClassName "btn btn-disabled"
+                        | None -> ClassName "btn btn-light") ]
+                    [ str "Yes" ]
+                yield button [ 
+                    (match model.MentionsSources with
+                      | Some Unsourced -> ClassName "btn btn-primary" 
+                      | Some _ -> ClassName "btn btn-disabled"
+                      | None -> ClassName "btn btn-light")
+                    OnClick (fun _ -> dispatch (MentionsSources Unsourced)) ]
+                    [ str "No" ]
+                yield button [ 
+                    (match model.MentionsSources with
+                      | Some NotRelevant -> ClassName "btn btn-primary"
+                      | Some _ -> ClassName "btn btn-disabled"
+                      | None -> ClassName "btn btn-light")
+                    OnClick (fun _ -> dispatch (MentionsSources NotRelevant)) ]
+                    [ str "Mark as not relevant" ]
+
+                match model.MentionsSources with
+                  | None | Some Unsourced | Some NotRelevant ->
+                    ()
+                  | Some Sourced ->
+                     for i in 0..model.SourceInfo.Length-1 do
+                          yield viewAddSource model i dispatch
+                          
+                     yield
+                       div [ClassName "row"] [     
+                         button 
+                          [ ClassName "btn btn-primary"
+                            OnClick (fun _ -> dispatch (AddSource (model.SourceInfo.Length))) ]
+                          [ str "+ Add additional source"]
+                       ]
+                yield 
+                    div [] [
+                        yield hr []
+                        yield button 
+                            [ OnClick (fun _ -> dispatch (SubmitAnnotations))
+                              (if model.Completed then ClassName "btn btn-success" 
+                               else ClassName "btn btn-disabled") ] 
+                            [ str "Submit" ]
+                        if model.Submitted = Some false then
+                            yield span [] [str "Cannot submit - please contact the admin."]
+                    ]
+            ]
+           ]
+           ]
+     
+     ]
+     )
     ]
 
 // Check if form can be submitted
@@ -794,19 +806,6 @@ let isCompleted model =
  
 let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
     match msg with
-    | FetchArticle -> 
-        model |> isCompleted, 
-        fetchArticleCmd 
-            { Article.Title = model.Heading; 
-              ID = model.Link; 
-              Text = None; 
-              SourceWebsite = model.SourceWebsite
-              AssignmentType = Standard } model.User,
-            NoOp
-         
-    | View -> 
-        Browser.console.log("View message in update")
-        model |> isCompleted, Cmd.none, NoOp //DisplayArticle model.Article
 
     | EditAnnotations ->
         { model with 
@@ -863,17 +862,18 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                         Text = t; 
                         MentionsSources = Some a.ArticleType
                         SourceInfo = a.Annotations; 
-                        Submitted = Some true }
+                        Submitted = Some true
+                        Loading = false }
                     |> isCompleted, Cmd.none, NoOp
                 else
                     Browser.console.log("Annotations loaded for incorrect user.")
-                    { model with Text = t }|> isCompleted, Cmd.none, NoOp
+                    { model with Text = t; Loading = false }|> isCompleted, Cmd.none, NoOp
             | None -> 
-                { model with Text = t }|> isCompleted, Cmd.none, NoOp
-        | None -> model|> isCompleted, Cmd.none, NoOp
+                { model with Text = t; Loading = false }|> isCompleted, Cmd.none, NoOp
+        | None -> { model with Loading = false } |> isCompleted, Cmd.none, NoOp
 
     | FetchError e ->
-        model|> isCompleted, Cmd.none, NoOp
+        { model with Loading = false } |> isCompleted, Cmd.none, NoOp
 
     | MentionsSources x ->
         match x with 
@@ -1010,7 +1010,7 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         { model with SourceSelectionMode = AnonymityText id } |> isCompleted, Cmd.none, NoOp        
 
     | GoToNextArticle ->
-        model, Cmd.none, NextArticle model.Link
+        { model with Loading = true }, Cmd.none, GetNextArticle
 
     | SetNote (sourceIdx, text) ->
         let sourceInfo = model.SourceInfo
@@ -1042,4 +1042,4 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
                 else 
                     None)
 
-        { model with SourceInfo = sources }, Cmd.none, NoOp
+        { model with SourceInfo = sources } |> isCompleted, Cmd.none, NoOp
