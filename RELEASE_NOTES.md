@@ -1,3 +1,8 @@
+### 1.0 - 2019-02-28
+* Modified algorithm for assigning articles to users
+* New version of article database
+* Explicit training batch
+
 ### 0.2 - 2019-01-12
 * Integrated with new version of article database
 

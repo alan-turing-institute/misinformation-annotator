@@ -96,17 +96,7 @@ let selectArticle articleId sqlConn assignmentType includeText =
   let result = 
     let parsed = 
           parseArticleData rdr assignmentType includeText
-    if parsed.Length = 1 then
-        parsed |> Array.exactlyOne
-    else
-        rdr.Close()
-        // try previous version of database - this applies specifically to training articles
-        let command' = "SELECT article_url, title, site_name, plain_content FROM [articles_v3] WHERE [article_url] = @ArticleId;" 
-        use cmd' = new SqlCommand(command', conn)
-        cmd'.Parameters.AddWithValue("@ArticleId", articleId) |> ignore
-        let rdr' = cmd'.ExecuteReader()
-        parseArticleData rdr' assignmentType includeText
-          |> Array.exactlyOne
+    parsed |> Array.exactlyOne
   conn.Close()  
   result
 
