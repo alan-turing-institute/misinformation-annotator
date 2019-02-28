@@ -204,7 +204,7 @@ WITH conflicts AS (
     FROM [annotations]
     WHERE article_url IN (
         SELECT article_url FROM [annotations]
-        WHERE user_id <> 'test' AND num_sources IS NOT NULL
+        WHERE user_id <> @UserId AND num_sources IS NOT NULL
         GROUP BY article_url
         HAVING 
             COUNT(*) = 2 AND -- there are two annotations
@@ -259,11 +259,8 @@ let selectFinishedArticles userName connectionString maxCount =
     conn.Open()
     let command = "
 WITH annotated AS (
-    SELECT TOP(@Count) article_url
-    FROM [annotations]
-    WHERE article_url IN (
-        SELECT article_url FROM [annotations]
-        WHERE user_id = @UserId AND num_sources IS NOT NULL)
+    SELECT TOP(@Count) article_url FROM [annotations]
+    WHERE user_id = @UserId AND num_sources IS NOT NULL
     ORDER BY updated_date DESC
 )
 SELECT articles_v5.article_url, title, site_name, plain_content 
@@ -288,27 +285,29 @@ let selectNextStandardArticle connectionString userName =
 DECLARE @selected_url NVARCHAR(800);
 
 WITH user_annotations AS (
-    SELECT article_url, annotation FROM [annotations]
-    WHERE user_id = @UserId
+    SELECT article_url, created_date
+    FROM [annotations]
+    WHERE user_id = @UserId   
 ),
-batch_article_to_annotate AS ( -- select batches that need an annotation to be added
-    SELECT minibatch_id, batch_article_test.article_url 
-    FROM [batch_article_test]
-        LEFT JOIN [annotations] ON batch_article_test.article_url = annotations.article_url
-    GROUP BY batch_article_test.article_url, minibatch_id
-    HAVING COUNT(*) < 2
+batch_article_to_annotate AS (
+    SELECT minibatch_id, batch_article_test.article_url     -- all articles that have less than two annotations
+    FROM [batch_article_test] 
+        LEFT JOIN user_annotations ON batch_article_test.article_url = user_annotations.article_url
+    GROUP BY batch_article_test.article_url, batch_article_test.minibatch_id
+    HAVING COUNT(*) < 2 AND minibatch_id > 0
 ),
 annotated_in_minibatch AS ( -- count proportion of annotated articles in the batches that require adding an annotation
-    SELECT minibatch_id, COUNT(batch_article_to_annotate.article_url) AS n_total, COUNT(user_annotations.annotation) AS n_annotated
-    FROM [batch_article_to_annotate]
-        LEFT JOIN user_annotations ON user_annotations.article_url = batch_article_to_annotate.article_url
+    SELECT minibatch_id, CAST(COUNT(batch_article_to_annotate.article_url) AS FLOAT) AS n_total, CAST(COUNT(user_annotations.created_date) AS FLOAT) AS n_annotated
+    FROM batch_article_to_annotate 
+        LEFT JOIN user_annotations
+        ON user_annotations.article_url = batch_article_to_annotate.article_url
     GROUP BY minibatch_id
 ),
 selected_minibatch AS ( -- take the first minibatch that needs annotations added
-    SELECT TOP(1) annotated_in_minibatch.minibatch_id 
+    SELECT TOP(1) annotated_in_minibatch.minibatch_id, n_annotated/n_total AS proportion
     FROM annotated_in_minibatch 
         INNER JOIN batch_info_test ON annotated_in_minibatch.minibatch_id = batch_info_test.minibatch_id
-    WHERE n_annotated/n_total <= @AnnotatedProportion AND priority > 0
+    WHERE n_annotated/n_total < @AnnotatedProportion AND priority > 0
     ORDER BY priority
 ),
 potential_articles AS (
