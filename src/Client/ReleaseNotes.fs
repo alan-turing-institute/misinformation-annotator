@@ -1,10 +1,13 @@
 module internal ReleaseNotes
 
-let Version = "1.0"
+let Version = "1.0.1"
 
 let IsPrerelease = false
 
 let Notes = """
+### 1.0.1 - 2019-03-01
+* Bug fixes
+
 ### 1.0 - 2019-02-28
 * Modified algorithm for assigning articles to users
 * New version of article database
