@@ -24,7 +24,8 @@ type Model =
     ErrorMsg : string option
     SelectedArticle : Article option   // Article clicked on
     Finished : bool
-    Loading : bool }
+    Loading : bool
+    NoNewArticles : bool }
 
 /// The different messages processed when interacting with the wish list
 type Msg =
@@ -36,6 +37,7 @@ type Msg =
     | SelectArticle of Article
     | LoadSingleArticle
     | FetchedUnfinishedArticle of ArticleList
+    | NoArticlesFound
 
 type ExternalMsg =
     | ViewArticle of Article
@@ -92,6 +94,7 @@ let init (user:UserData, articleList : ArticleList option, toAnnotate : Article 
       SelectedArticle = None
       CurrentArticle = toAnnotate
       Finished = false
+      NoNewArticles = false
       Loading = 
         match articleList with
         | None -> true
@@ -162,6 +165,11 @@ let update (msg:Msg) model : Model*Cmd<Msg>*ExternalMsg =
         Cmd.none,
         GetNextArticle
 
+    | NoArticlesFound ->
+        { model with NoNewArticles = true; Loading = false },
+        Cmd.none, 
+        NoOp
+
 
 let viewArticleComponent idx article annotated (dispatch: Msg -> unit) =
   tr [ OnClick (fun _ -> dispatch (SelectArticle article)) 
@@ -199,6 +207,7 @@ let view (model:Model) (dispatch: Msg -> unit) =
 
                 (if model.Finished then
                     // load new article to annotate 
+                  if model.NoNewArticles = false then
                     div [] [
                         button 
                           ( match model.CurrentArticle with
@@ -208,6 +217,10 @@ let view (model:Model) (dispatch: Msg -> unit) =
                             | Some _ ->
                                 [ ClassName "btn btn-disabled" ] )
                           [ str "Next article to annotate" ]
+                    ]
+                  else
+                    div [] [ 
+                        h6 [] [str "No new articles to display"]
                     ]
                  else div [] [
                   

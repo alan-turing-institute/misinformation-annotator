@@ -243,8 +243,15 @@ let update msg model =
                 model, 
                 userPassedTrainingCmd model.User.Value
             else
-                Browser.console.log("No articles to show") // TODO: fail gracefully - display info in Annotations tab
-                model, Cmd.none
+                Browser.console.log("No articles to show") 
+
+                let m, cmd = Annotations.init(model.User.Value, model.AllArticles, model.ArticleToAnnotate)
+                
+                { model with PageModel = AnnotationsModel m }, 
+                Cmd.batch [
+                    Cmd.map AnnotationsMsg cmd
+                    Cmd.map AnnotationsMsg (Cmd.ofMsg (Annotations.NoArticlesFound))
+                ]
                 
 
     | UserPassedTraining(success), _ ->
