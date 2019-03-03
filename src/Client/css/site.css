@@ -277,26 +277,22 @@ body {
 }
 
 .row-height{
-    height: 100vh;
+    height: 90vh;
 }
 
 .left{
-height: 97%;
+height: 90%;
 overflow-y: scroll;
 }
 
 .right{
-height: 97%;
+height: 90%;
 overflow-y: scroll;
 }
 
 .bottom {    
     position: absolute;
     bottom: 10px;
-}
-
-.body {
-    height: 100%;
 }
 
 .list-item {
