@@ -243,7 +243,7 @@ let update msg model =
                 model, 
                 userPassedTrainingCmd model.User.Value
             else
-                Browser.console.log("No articles to show")
+                Browser.console.log("No articles to show") // TODO: fail gracefully - display info in Annotations tab
                 model, Cmd.none
                 
 

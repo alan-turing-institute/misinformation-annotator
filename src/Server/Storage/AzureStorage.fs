@@ -282,12 +282,17 @@ WITH user_annotations AS (
     FROM [annotations]
     WHERE user_id = @UserId   
 ),
-batch_article_to_annotate AS (
+all_articles_that_need_annotation AS (   -- this is incorrect - we also need all possible articles to annotate, not just the ones not annotated by the current user
     SELECT minibatch_id, batch_article_test.article_url     -- all articles that have less than two annotations
     FROM [batch_article_test] 
-        LEFT JOIN user_annotations ON batch_article_test.article_url = user_annotations.article_url
+        LEFT JOIN annotations ON batch_article_test.article_url = annotations.article_url
     GROUP BY batch_article_test.article_url, batch_article_test.minibatch_id
     HAVING COUNT(*) < 2 AND minibatch_id > 0
+),
+batch_article_to_annotate AS (
+    SELECT * 
+    FROM all_articles_that_need_annotation 
+    WHERE article_url NOT IN (SELECT article_url FROM user_annotations)
 ),
 annotated_in_minibatch AS ( -- count proportion of annotated articles in the batches that require adding an annotation
     SELECT minibatch_id, CAST(COUNT(batch_article_to_annotate.article_url) AS FLOAT) AS n_total, CAST(COUNT(user_annotations.created_date) AS FLOAT) AS n_annotated
@@ -383,6 +388,7 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
                 let conflicts = 
                     selectConflictingArticle connectionString userData.UserName
                 if conflicts.Length = 0 then
+                    printfn "No conflicting articles found - selecting next standard article"
                     selectNextStandardArticle connectionString userData.UserName
                 else
                     conflicts
