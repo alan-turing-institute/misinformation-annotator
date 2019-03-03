@@ -1,10 +1,14 @@
 module internal ReleaseNotes
 
-let Version = "1.0.1"
+let Version = "1.0.2"
 
 let IsPrerelease = false
 
 let Notes = """
+### 1.0.2 - 2019-03-03
+* Moving larger non-trivial SQL queries into separate files
+* Bug fixes
+
 ### 1.0.1 - 2019-03-01
 * Bug fixes
 
