@@ -1,3 +1,6 @@
+### 1.0.3 - 2019-03-03
+* Bug fixes
+
 ### 1.0.2 - 2019-03-03
 * Moving larger non-trivial SQL queries into separate files
 * Bug fixes
