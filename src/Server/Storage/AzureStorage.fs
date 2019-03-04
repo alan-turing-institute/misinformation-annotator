@@ -328,7 +328,7 @@ annotated_counts AS (  -- Count how many annotations are there for each article,
 )
 -- sort articles randomly, starting with articles with no annotations
 SELECT @selected_url = (
-    SELECT TOP(100) article_url, n 
+    SELECT TOP(1) article_url
     FROM annotated_counts
     GROUP BY article_url, n
     ORDER BY n, NEWID()  
