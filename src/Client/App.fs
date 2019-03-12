@@ -98,7 +98,7 @@ let loadUnfinishedArticleCmd user =
     Browser.console.log("Load next article to be annotated")
     Cmd.ofPromise loadArticles (user, Unfinished) FetchedUnfinishedArticle FetchError    
 
-let userPassedTraining user =
+let updateUserStatus user =
     promise {
         let url = ServerUrls.APIUrls.User
         let body = toJson (user)
@@ -115,7 +115,11 @@ let userPassedTraining user =
 
 let userPassedTrainingCmd user =
     Browser.console.log("User passed training batch of articles")
-    Cmd.ofPromise userPassedTraining user UserPassedTraining StorageFailure
+    Cmd.ofPromise updateUserStatus user UserPassedTraining StorageFailure
+
+let userPassedEvaluationCmd user =
+    Browser.console.log("User passed evaluation batch of articles")
+    Cmd.ofPromise updateUserStatus user UserPassedEvaluation StorageFailure
 
 
 let init result =
@@ -232,17 +236,22 @@ let update msg model =
             // no articles returned
             // possible causes:
             // - Finished training
+            // - Finished evaluation
             // - No articles left
             // - Error
 
-            if model.User.IsSome && 
-                (model.User.Value.Proficiency = Training("Expert") ||
-                 model.User.Value.Proficiency = Training("User")) then
-                // user finished training batch
-
+            match model.User.Value.Proficiency with
+            | Training proficiency ->
+                // user finished training batch, move onto evaluation
                 model, 
-                userPassedTrainingCmd model.User.Value
-            else
+                userPassedTrainingCmd { model.User.Value with Proficiency = Evaluation proficiency }
+            
+            | Evaluation proficiency ->
+                // user finished evaluation batch, move onto standard annotations
+                model, 
+                userPassedEvaluationCmd { model.User.Value with Proficiency = Standard proficiency }
+
+            | Standard proficiency ->
                 Browser.console.log("No articles to show") 
 
                 let m, cmd = Annotations.init(model.User.Value, model.AllArticles, model.ArticleToAnnotate)
@@ -252,26 +261,41 @@ let update msg model =
                     Cmd.map AnnotationsMsg cmd
                     Cmd.map AnnotationsMsg (Cmd.ofMsg (Annotations.NoArticlesFound))
                 ]
+
                 
 
     | UserPassedTraining(success), _ ->
         if success then 
             let proficiency = 
                 match model.User.Value.Proficiency with
-                | Training(x) ->
-                    match x with
-                    | "User" -> User
-                    | "Expert" -> Expert
-                    | _ -> User
-                | _ -> User
+                | Training x -> x
+                | Evaluation x -> x
+                | Standard x -> x
 
-            let newUserValue = {model.User.Value with Proficiency = proficiency}
+            let newUserValue = { model.User.Value with Proficiency = Evaluation proficiency }
             { model with
                     User = Some(newUserValue)
                     }, 
             loadSingleArticleCmd newUserValue
         else
             Browser.console.log("Cannot mark user as 'passed training'")
+            model, Cmd.none
+
+    | UserPassedEvaluation(success), _ ->
+        if success then 
+            let proficiency = 
+                match model.User.Value.Proficiency with
+                | Training x -> x
+                | Evaluation x -> x
+                | Standard x -> x
+
+            let newUserValue = {model.User.Value with Proficiency = Standard proficiency}
+            { model with
+                    User = Some(newUserValue)
+                    }, 
+            loadSingleArticleCmd newUserValue 
+        else
+            Browser.console.log("Cannot mark user as 'passed evaluation'")
             model, Cmd.none
 
     | FetchedUnfinishedArticle articles, _ ->

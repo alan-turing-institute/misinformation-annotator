@@ -246,6 +246,33 @@ WHERE articles_v5.article_url IN (SELECT article_url FROM training_articles)"
     conn.Close()
     result
 
+let selectNextEvaluationArticle connectionString userName =
+    // Select article in the evaluation set that is assigned to the current user
+    use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
+    conn.Open()
+    let command = "
+WITH user_annotations AS (
+    SELECT article_url FROM [annotations]
+    WHERE user_id = @UserId
+), 
+evaluation_articles AS (
+    SELECT article_url 
+    FROM [batch_evaluation_test] 
+    WHERE batch_evaluation_test.username = @UserId
+        AND batch_evaluation_test.article_url NOT IN (SELECT * FROM user_annotations)
+)
+SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
+FROM [articles_v5] 
+WHERE articles_v5.article_url IN (SELECT article_url FROM evaluation_articles)"  
+
+    use cmd = new SqlCommand(command, conn)
+    cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
+
+    let rdr = cmd.ExecuteReader()
+    let result = parseArticleData rdr NextArticle false
+    conn.Close()
+    result    
+
 let selectFinishedArticles userName connectionString maxCount =
     // Select all articles annotated by the current user previously
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
@@ -337,7 +364,7 @@ SELECT articles_v5.article_url, title, site_name, plain_content
 FROM [articles_v5] 
 WHERE articles_v5.article_url = @selected_url
 "  
-    // TODO: test properly
+    
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
     cmd.Parameters.AddWithValue("@AnnotatedProportion", AnnotatedProportion) |> ignore
@@ -378,18 +405,24 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
         // Main user assignment algorithm
 
         match userData.Proficiency with
-        | Training(_)-> 
+        | Training _ -> 
             printfn "Next training article"
             // load article from the training batch
             return 
                 selectNextTrainingArticle connectionString userData.UserName
+
+        | Evaluation _ ->
+            printfn "Next evaluation article"
+            // load article from the evaluation batch
+            return 
+                selectNextEvaluationArticle connectionString userData.UserName       
         
-        | User ->
+        | Standard User ->
             // standard user
             return
                 selectNextStandardArticle connectionString userData.UserName
 
-        | Expert ->
+        | Standard Expert ->
             // expert user
             let articles = 
                 let conflicts = 
@@ -552,18 +585,19 @@ let IsValidUser ( connectionString : AzureConnection) userName password = task {
     let rdr = cmd.ExecuteReader()
     let result = 
         [| while rdr.Read() do 
-            let proficiency = rdr.GetString(3)
+            let proficiency = 
+                match rdr.GetString(3) with
+                | "User" -> User
+                | "Expert" -> Expert
+                | _ -> User 
             let user = {
                 UserName = rdr.GetString(0)
                 Proficiency = 
                     match rdr.GetInt32(4) with // Passed training, i.e. went through the training batch
-                    | 0 -> Training(proficiency)
-                    | 1 ->
-                        match proficiency with
-                        | "User" -> User
-                        | "Expert" -> Expert
-                        | _ -> Training(proficiency)
-                    | _ -> Training(proficiency)
+                    | 0 -> Training proficiency
+                    | 1 -> Evaluation proficiency
+                    | 2 -> Standard proficiency
+                    | _ -> Training proficiency
                 Token = ServerCode.JsonWebToken.encode (
                          { UserName = rdr.GetString(0) } : ServerTypes.UserRights
                         )            
@@ -592,13 +626,24 @@ let FlagArticle ( connectionString : AzureConnection) (flaggedArticle: Domain.Fl
     return exists
 }
 
-let UserPassedTraining ( connectionString : AzureConnection)  (user: Domain.UserData) = task {
+let UpdateUserStatus ( connectionString : AzureConnection)  (user: Domain.UserData) = task {
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
-    let command = "UPDATE [users]
-    SET passed_training = 1 
-    WHERE username = @UserId"  
+    let command = 
+        match user.Proficiency with
+        | Training userType ->
+            // set user status to 0
+            "UPDATE [users] SET passed_training = 0 WHERE username = @UserId"  
+
+        | Evaluation userType ->
+            // set user status to 1
+            "UPDATE [users] SET passed_training = 1 WHERE username = @UserId"  
+
+        | Standard userType -> 
+            // set user status to 2
+            "UPDATE [users] SET passed_training = 2 WHERE username = @UserId"  
+
 
     let cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", user.UserName) |> ignore
