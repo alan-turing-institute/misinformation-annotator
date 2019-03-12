@@ -19,7 +19,7 @@ type UserType =
 type UserProficiency =
     | Standard of UserType
     | Training of UserType
-    | Validation of UserType
+    | Evaluation of UserType
     
 type UserData =
   { UserName : string
