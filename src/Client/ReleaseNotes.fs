@@ -1,10 +1,13 @@
 module internal ReleaseNotes
 
-let Version = "1.0.4"
+let Version = "1.1.0"
 
 let IsPrerelease = false
 
 let Notes = """
+### 1.1.0 - 2019-03-12
+* Added evaluation phase for annotators
+
 ### 1.0.4 - 2019-03-04
 * Bug fixes
 
