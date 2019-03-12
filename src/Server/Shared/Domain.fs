@@ -12,10 +12,14 @@ type Login =
       Password   : string
       PasswordId : Guid }
 
-type UserProficiency =
+type UserType = 
     | User
     | Expert
-    | Training of string
+
+type UserProficiency =
+    | Standard of UserType
+    | Training of UserType
+    | Validation of UserType
     
 type UserData =
   { UserName : string

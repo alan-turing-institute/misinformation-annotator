@@ -236,12 +236,13 @@ let update msg model =
             // - Error
 
             if model.User.IsSome && 
-                (model.User.Value.Proficiency = Training("Expert") ||
-                 model.User.Value.Proficiency = Training("User")) then
+                (model.User.Value.Proficiency = Training(User) ||
+                 model.User.Value.Proficiency = Training(Expert)) then
                 // user finished training batch
 
                 model, 
                 userPassedTrainingCmd model.User.Value
+            //
             else
                 Browser.console.log("No articles to show") 
 
@@ -258,20 +259,34 @@ let update msg model =
         if success then 
             let proficiency = 
                 match model.User.Value.Proficiency with
-                | Training(x) ->
-                    match x with
-                    | "User" -> User
-                    | "Expert" -> Expert
-                    | _ -> User
-                | _ -> User
+                | Training x -> x
+                | Validation x -> x
+                | Standard x -> x
 
-            let newUserValue = {model.User.Value with Proficiency = proficiency}
+            let newUserValue = {model.User.Value with Proficiency = Validation proficiency}
             { model with
                     User = Some(newUserValue)
                     }, 
             loadSingleArticleCmd newUserValue
         else
             Browser.console.log("Cannot mark user as 'passed training'")
+            model, Cmd.none
+
+    | UserPassedValidation(success), _ ->
+        if success then 
+            let proficiency = 
+                match model.User.Value.Proficiency with
+                | Training x -> x
+                | Validation x -> x
+                | Standard x -> x
+
+            let newUserValue = {model.User.Value with Proficiency = Standard proficiency}
+            { model with
+                    User = Some(newUserValue)
+                    }, 
+            loadSingleArticleCmd newUserValue // TODO: change
+        else
+            Browser.console.log("Cannot mark user as 'passed validation'")
             model, Cmd.none
 
     | FetchedUnfinishedArticle articles, _ ->

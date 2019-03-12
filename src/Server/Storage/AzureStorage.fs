@@ -378,18 +378,23 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
         // Main user assignment algorithm
 
         match userData.Proficiency with
-        | Training(_)-> 
+        | Training _ -> 
             printfn "Next training article"
             // load article from the training batch
             return 
                 selectNextTrainingArticle connectionString userData.UserName
+
+        | Validation _ ->
+            printfn "Next validation article"
+            // TODO
+            return [||]       
         
-        | User ->
+        | Standard User ->
             // standard user
             return
                 selectNextStandardArticle connectionString userData.UserName
 
-        | Expert ->
+        | Standard Expert ->
             // expert user
             let articles = 
                 let conflicts = 
@@ -552,18 +557,19 @@ let IsValidUser ( connectionString : AzureConnection) userName password = task {
     let rdr = cmd.ExecuteReader()
     let result = 
         [| while rdr.Read() do 
-            let proficiency = rdr.GetString(3)
+            let proficiency = 
+                match rdr.GetString(3) with
+                | "User" -> User
+                | "Expert" -> Expert
+                | _ -> User 
             let user = {
                 UserName = rdr.GetString(0)
                 Proficiency = 
                     match rdr.GetInt32(4) with // Passed training, i.e. went through the training batch
-                    | 0 -> Training(proficiency)
-                    | 1 ->
-                        match proficiency with
-                        | "User" -> User
-                        | "Expert" -> Expert
-                        | _ -> Training(proficiency)
-                    | _ -> Training(proficiency)
+                    | 0 -> Training proficiency
+                    | 1 -> Validation proficiency
+                    | 2 -> Standard proficiency
+                    | _ -> Training proficiency
                 Token = ServerCode.JsonWebToken.encode (
                          { UserName = rdr.GetString(0) } : ServerTypes.UserRights
                         )            
@@ -592,7 +598,8 @@ let FlagArticle ( connectionString : AzureConnection) (flaggedArticle: Domain.Fl
     return exists
 }
 
-let UserPassedTraining ( connectionString : AzureConnection)  (user: Domain.UserData) = task {
+// TODO
+let UpdateUserStatus ( connectionString : AzureConnection)  (user: Domain.UserData) = task {
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 

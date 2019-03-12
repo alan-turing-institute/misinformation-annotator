@@ -86,7 +86,7 @@ let IsValidUser userName password =
         Some (
           {
             UserName = userName
-            Proficiency = UserProficiency.User
+            Proficiency = UserProficiency.Training User
             Token =
                 ServerCode.JsonWebToken.encode (
                     { UserName = userName } : ServerTypes.UserRights

@@ -22,7 +22,7 @@ type IDatabaseFunctions =
     abstract member LoadArticleAnnotations : string -> string -> Task<Domain.ArticleAnnotations option>
     abstract member IsValidUser : string -> string -> Task<UserData option>
     abstract member FlagArticle : Domain.FlaggedArticle -> Task<bool>
-    abstract member UserPassedTraining : Domain.UserData -> Task<bool>
+    abstract member UpdateUserStatus : Domain.UserData -> Task<bool>
 
 /// Start the web server and connect to database
 let getDatabase databaseType startupTime =
@@ -40,7 +40,7 @@ let getDatabase databaseType startupTime =
             member __.LoadArticleAnnotations articleId userName = Storage.AzureStorage.loadArticleAnnotationsFromDB connection articleId userName
             member __.IsValidUser userName password = Storage.AzureStorage.IsValidUser connection userName password
             member __.FlagArticle flaggedArticle = Storage.AzureStorage.FlagArticle connection flaggedArticle 
-            member __.UserPassedTraining user = Storage.AzureStorage.UserPassedTraining connection user
+            member __.UpdateUserStatus user = Storage.AzureStorage.UpdateUserStatus connection user
         }
 
     | DatabaseType.FileSystem ->
@@ -53,6 +53,6 @@ let getDatabase databaseType startupTime =
             member __.LoadArticleAnnotations articleId userName = task { return Storage.FileSystem.loadArticleAnnotationsFromDB articleId userName }
             member __.IsValidUser userName password = task { return Storage.FileSystem.IsValidUser userName password } 
             member __.FlagArticle flaggedArticle = task { return true }
-            member __.UserPassedTraining user = task { return false }
+            member __.UpdateUserStatus user = task { return false }
         }
             

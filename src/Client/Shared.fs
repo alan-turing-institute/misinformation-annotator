@@ -32,6 +32,7 @@ type Msg =
     | FetchError of exn
 
     | UserPassedTraining of bool
+    | UserPassedValidation of bool
 
 // VIEW
 
