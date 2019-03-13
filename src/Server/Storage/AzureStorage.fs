@@ -511,7 +511,8 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
     | Sourced | Unsourced ->
         cmd.Parameters.AddWithValue("@NumSources", annotations.Annotations.Length)  |> ignore
     | NotRelevant ->
-        cmd.Parameters.AddWithValue("@NumSources", -10)  |> ignore
+        // Assign a negative number to enforce expert annotation
+        cmd.Parameters.AddWithValue("@NumSources", 2 * ConflictCountThreshold)  |> ignore
 
     let result = cmd.ExecuteNonQuery()
     conn.Close()
