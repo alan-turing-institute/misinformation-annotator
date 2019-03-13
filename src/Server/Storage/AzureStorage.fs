@@ -431,6 +431,7 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
                     printfn "No conflicting articles found - selecting next standard article"
                     selectNextStandardArticle connectionString userData.UserName
                 else
+                    printfn "Annotation conflicts found - selecting next conflicting article"
                     conflicts
             return articles
 
@@ -505,7 +506,13 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
     cmd.Parameters.AddWithValue("@Annotation", toJson annotations)  |> ignore
     cmd.Parameters.AddWithValue("@UserId", annotations.User.UserName)  |> ignore
     cmd.Parameters.AddWithValue("@UpdatedDate", System.DateTime.UtcNow)  |> ignore
-    cmd.Parameters.AddWithValue("@NumSources", annotations.Annotations.Length)  |> ignore
+
+    match annotations.ArticleType with
+    | Sourced | Unsourced ->
+        cmd.Parameters.AddWithValue("@NumSources", annotations.Annotations.Length)  |> ignore
+    | NotRelevant ->
+        // Assign a negative number to enforce expert annotation
+        cmd.Parameters.AddWithValue("@NumSources", 2 * ConflictCountThreshold)  |> ignore
 
     let result = cmd.ExecuteNonQuery()
     conn.Close()
