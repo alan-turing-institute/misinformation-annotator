@@ -1,3 +1,6 @@
+### 1.1.1 - 2019-03-13
+* Changed handling of articles labelled as not relevant
+
 ### 1.1.0 - 2019-03-12
 * Added evaluation phase for annotators
 
