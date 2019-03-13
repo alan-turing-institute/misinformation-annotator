@@ -207,7 +207,8 @@ conflicts AS (
 )
 SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
 FROM [articles_v5] INNER JOIN conflicts 
-ON articles_v5.article_url = conflicts.article_url"  
+ON articles_v5.article_url = conflicts.article_url
+ORDER BY NEWID()"  
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
