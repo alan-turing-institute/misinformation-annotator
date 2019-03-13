@@ -1,10 +1,13 @@
 module internal ReleaseNotes
 
-let Version = "1.1.2"
+let Version = "1.1.3"
 
 let IsPrerelease = false
 
 let Notes = """
+### 1.1.3 - 2019-03-13
+* Assign conflicting articles in random order to comply with documented behaviour
+
 ### 1.1.2 - 2019-03-13
 * Bug fixes
 

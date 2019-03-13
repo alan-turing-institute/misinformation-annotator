@@ -1,3 +1,6 @@
+### 1.1.3 - 2019-03-13
+* Assign conflicting articles in random order to comply with documented behaviour
+
 ### 1.1.2 - 2019-03-13
 * Bug fixes
 
