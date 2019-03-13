@@ -1,3 +1,6 @@
+### 1.1.2 - 2019-03-13
+* Bug fixes
+
 ### 1.1.1 - 2019-03-13
 * Changed handling of articles labelled as not relevant
 
