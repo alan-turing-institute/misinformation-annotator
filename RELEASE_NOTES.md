@@ -1,3 +1,6 @@
+### 1.1.4 - 2019-03-13
+* Deployment with production database
+
 ### 1.1.3 - 2019-03-13
 * Assign conflicting articles in random order to comply with documented behaviour
 

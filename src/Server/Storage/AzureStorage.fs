@@ -229,10 +229,10 @@ WITH user_annotations AS (
     WHERE user_id = @UserId
 ), 
 training_articles AS (
-    SELECT batch_article_test.article_url 
-    FROM [batch_article_test] 
+    SELECT batch_article.article_url 
+    FROM [batch_article] 
         LEFT JOIN user_annotations
-        ON batch_article_test.article_url = user_annotations.article_url
+        ON batch_article.article_url = user_annotations.article_url
     WHERE minibatch_id = 0 AND annotation IS NULL
 )
 SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
@@ -258,9 +258,9 @@ WITH user_annotations AS (
 ), 
 evaluation_articles AS (
     SELECT article_url 
-    FROM [batch_evaluation_test] 
-    WHERE batch_evaluation_test.username = @UserId
-        AND batch_evaluation_test.article_url NOT IN (SELECT * FROM user_annotations)
+    FROM [batch_evaluation] 
+    WHERE batch_evaluation.username = @UserId
+        AND batch_evaluation.article_url NOT IN (SELECT * FROM user_annotations)
 )
 SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
 FROM [articles_v5] 
@@ -313,10 +313,10 @@ WITH user_annotations AS (
 ),
 -- all articles that need annotations, regardless of user
 all_articles_that_need_annotation AS (   
-    SELECT minibatch_id, batch_article_test.article_url
-    FROM [batch_article_test] 
-        LEFT JOIN annotations ON batch_article_test.article_url = annotations.article_url
-    GROUP BY batch_article_test.article_url, batch_article_test.minibatch_id
+    SELECT minibatch_id, batch_article.article_url
+    FROM [batch_article] 
+        LEFT JOIN annotations ON batch_article.article_url = annotations.article_url
+    GROUP BY batch_article.article_url, batch_article.minibatch_id
     HAVING COUNT(*) < 2 AND minibatch_id > 0
 ),
 -- all articles that need annotation, excluding articles already annotated by the current user
@@ -337,14 +337,14 @@ annotated_in_minibatch AS (
 selected_minibatch AS ( 
     SELECT TOP(1) annotated_in_minibatch.minibatch_id, n_annotated/n_total AS proportion
     FROM annotated_in_minibatch 
-        INNER JOIN batch_info_test ON annotated_in_minibatch.minibatch_id = batch_info_test.minibatch_id
+        INNER JOIN batch_info ON annotated_in_minibatch.minibatch_id = batch_info.minibatch_id
     WHERE n_annotated/n_total < @AnnotatedProportion AND priority > 0
     ORDER BY priority
 ),
 -- articles in the selected minibatch
 potential_articles AS (
     SELECT article_url 
-    FROM [batch_article_test]
+    FROM [batch_article]
     WHERE minibatch_id IN (SELECT minibatch_id FROM selected_minibatch)
 ),
 annotated_counts AS (  -- Count how many annotations are there for each article, ignoring articles annotated by the user
