@@ -1,3 +1,6 @@
+### 1.1.5 - 2019-06-18
+* Quick fix of issue with highlighting where both beginning and end is at the beginning of a paragraph
+
 ### 1.1.4 - 2019-03-13
 * Deployment with production database
 
