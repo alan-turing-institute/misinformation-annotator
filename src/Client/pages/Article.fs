@@ -323,17 +323,25 @@ let getSelection (model: Model) e : SelectionResult =
                 else 
                     endParagraphId, endIdx, startParagraphId, startIdx
 
-            let result = 
-             (id, { 
-               StartParagraphId = startP
-               StartIdx = startI
-               EndParagraphId = endP
-               EndIdx = endI
-               IncludedParagraphs = extractIntermediateLeafElements startParagraphId endParagraphId model.Text
-               Text = rawOutput.toString() })
+            if startI = 0 && endI = 0 then 
+                window.getSelection().removeAllRanges()
+                NoSelection // This only ignores the issue
+                // TODO: deal with the issue properly 
+                //      - identify internal leafs correctly
+                //      - finish highlight in the previous element instead of 0-th position of the next element
+            else
 
-            window.getSelection().removeAllRanges()
-            result |> NewHighlight
+                let result = 
+                 (id, { 
+                   StartParagraphId = startP
+                   StartIdx = startI
+                   EndParagraphId = endP
+                   EndIdx = endI
+                   IncludedParagraphs = extractIntermediateLeafElements startParagraphId endParagraphId model.Text
+                   Text = rawOutput.toString() })
+
+                window.getSelection().removeAllRanges()
+                result |> NewHighlight
     | "Caret" -> 
         let paragraph = 
             let elementId = rawOutput.anchorNode.parentElement.id 
