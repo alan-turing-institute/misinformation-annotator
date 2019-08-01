@@ -22,7 +22,7 @@ open FSharp.Data
 
 type AzureConnection = {
     BlobConnection : string
-    SqlConnection : string 
+    SqlConnection : string
 }
 
 [<Literal>]
@@ -35,16 +35,16 @@ let ConflictCountThreshold = 3
 // Html parsing code to format articles
 
 let getElementId attributes =
-    attributes 
-    |> List.choose (fun (HtmlAttribute(name, value)) -> 
+    attributes
+    |> List.choose (fun (HtmlAttribute(name, value)) ->
         if name = "data-node-index" then Some value else None)
     |> List.exactlyOne
 
 let rec transformHtmlFormat (contents: HtmlNode list) =
     [ for el in contents do
-        match el with 
+        match el with
         | HtmlElement(name, attributes, elements) ->
-            yield SimpleHtmlElement(name, (getElementId attributes), transformHtmlFormat elements, false) 
+            yield SimpleHtmlElement(name, (getElementId attributes), transformHtmlFormat elements, false)
         | HtmlCData _ -> ()
         | HtmlComment _ -> ()
         | HtmlText x -> yield SimpleHtmlText(x)
@@ -52,35 +52,35 @@ let rec transformHtmlFormat (contents: HtmlNode list) =
 
 let rec markLeafNodes (contents : SimpleHtmlNode list) =
     [ for el in contents do
-        match el with 
+        match el with
         | SimpleHtmlText(x) -> yield (el, true)
         | SimpleHtmlElement(name, id, elements, _) ->
             let elements', areLeafs = markLeafNodes elements |> List.unzip
             yield SimpleHtmlElement(name, id, elements', (areLeafs |> List.fold (||) false )), false
     ]
 
-let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) includeContent = 
-    [| while rdr.Read() do 
-        
-        let contents = 
+let parseArticleData (rdr: SqlDataReader) (assignmentType: ArticleAssignment) includeContent =
+    [| while rdr.Read() do
+
+        let contents =
             if includeContent then
                 let articleContents = rdr.GetString(3)
 
                 let (HtmlDocument(_, elements)) = HtmlDocument.Parse(articleContents)
                 let parsedContents : ArticleText = transformHtmlFormat elements
-                markLeafNodes parsedContents 
-                |> List.unzip 
+                markLeafNodes parsedContents
+                |> List.unzip
                 |> fst
                 |> Some
             else None
 
-        yield { 
+        yield {
           ID = rdr.GetString(0)
           Title = rdr.GetString(1)
           SourceWebsite = rdr.GetString(2)
           AssignmentType = assignmentType
           Text = contents
-                 } |]    
+                 } |]
 
 // ==============================================================================================
 
@@ -88,19 +88,19 @@ let selectArticle articleId sqlConn assignmentType includeText =
   use conn = new System.Data.SqlClient.SqlConnection(sqlConn)
   conn.Open()
 
-  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v5] WHERE [article_url] = @ArticleId;" 
+  let command = "SELECT article_url, title, site_name, plain_content FROM [articles_v6] WHERE [article_url] = @ArticleId;"
   use cmd = new SqlCommand(command, conn)
   cmd.Parameters.AddWithValue("@ArticleId", articleId) |> ignore
-  
+
   let rdr = cmd.ExecuteReader()
-  let result = 
-    let parsed = 
+  let result =
+    let parsed =
           parseArticleData rdr assignmentType includeText
     parsed |> Array.exactlyOne
-  conn.Close()  
+  conn.Close()
   result
 
-let getJSONFileName userName (articleId: string) = 
+let getJSONFileName userName (articleId: string) =
     let id = articleId.Replace("/", "-")
     sprintf "%s/%s.json" userName id
 
@@ -113,7 +113,7 @@ let getAnnotationsBlob (connectionString : AzureConnection) userName articleId =
 let getExistingAnnotationBlob ( connectionString : AzureConnection) userName articleId = task {
     let! annotationBlob = getAnnotationsBlob (connectionString) userName articleId
     let! exists = annotationBlob.ExistsAsync()
-    if exists then 
+    if exists then
         return Some annotationBlob
     else
         return None
@@ -128,20 +128,20 @@ let checkAnnotationsExist (connectionString : AzureConnection) userName articles
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = 
-        [| while rdr.Read() do 
+    let result =
+        [| while rdr.Read() do
             let article_url = rdr.GetString(0)
             yield article_url |]
         |> set
     let annotations =
         articles
-        |> Array.map (fun article ->  
-            article, 
+        |> Array.map (fun article ->
+            article,
             if result.Contains(article.ID) then true else false)
     conn.Close()
-    return annotations        
+    return annotations
 }
-    
+
 let getArticlesBlob (connectionString : AzureConnection) = task {
     let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
     let container = blobClient.GetContainerReference("sample-crawl")
@@ -154,14 +154,14 @@ let loadArticlesFromFile connectionString = task {
         let! articleBlob = getArticlesBlob connectionString
         return! articleBlob.DownloadTextAsync()
     }
-    
-    let articles = 
+
+    let articles =
         results.Split '\n'
         |> Array.filter (fun a -> a <> "")
         |> Array.map (fun articleLine ->
                 articleLine |> JsonConvert.DeserializeObject<ArticleDBData>
             )
-    return articles        
+    return articles
 }
 
 let selectUnfinishedArticles connectionString userName =
@@ -169,12 +169,12 @@ let selectUnfinishedArticles connectionString userName =
     conn.Open()
     let command = "
 WITH unfinished_articles AS (
-    SELECT article_url 
-    FROM [annotations] 
+    SELECT article_url
+    FROM [annotations]
     WHERE user_id =@UserId AND annotation IS NULL
 )
-SELECT articles_v5.article_url, title, site_name, plain_content FROM [articles_v5] 
-INNER JOIN unfinished_articles ON articles_v5.article_url = unfinished_articles.article_url"
+SELECT articles_v6.article_url, title, site_name, plain_content FROM [articles_v6]
+INNER JOIN unfinished_articles ON articles_v6.article_url = unfinished_articles.article_url"
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
@@ -200,15 +200,15 @@ conflicts AS (
         SELECT article_url FROM [annotations]
         WHERE article_url NOT IN (SELECT * FROM annotated_by_user) AND num_sources IS NOT NULL
         GROUP BY article_url
-        HAVING 
+        HAVING
             COUNT(*) = 2 AND -- there are two annotations
             MAX(num_sources) - MIN(num_sources) > @Threshold -- difference between them is larger than threshold
-    ) 
+    )
 )
-SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
-FROM [articles_v5] INNER JOIN conflicts 
-ON articles_v5.article_url = conflicts.article_url
-ORDER BY NEWID()"  
+SELECT TOP(1) articles_v6.article_url, title, site_name, plain_content
+FROM [articles_v6] INNER JOIN conflicts
+ON articles_v6.article_url = conflicts.article_url
+ORDER BY NEWID()"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
@@ -227,17 +227,17 @@ let selectNextTrainingArticle connectionString userName =
 WITH user_annotations AS (
     SELECT article_url, annotation FROM [annotations]
     WHERE user_id = @UserId
-), 
+),
 training_articles AS (
-    SELECT batch_article.article_url 
-    FROM [batch_article] 
+    SELECT batch_article.article_url
+    FROM [batch_article]
         LEFT JOIN user_annotations
         ON batch_article.article_url = user_annotations.article_url
     WHERE minibatch_id = 0 AND annotation IS NULL
 )
-SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
-FROM [articles_v5] 
-WHERE articles_v5.article_url IN (SELECT article_url FROM training_articles)"  
+SELECT TOP(1) articles_v6.article_url, title, site_name, plain_content
+FROM [articles_v6]
+WHERE articles_v6.article_url IN (SELECT article_url FROM training_articles)"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
@@ -255,16 +255,16 @@ let selectNextEvaluationArticle connectionString userName =
 WITH user_annotations AS (
     SELECT article_url FROM [annotations]
     WHERE user_id = @UserId
-), 
+),
 evaluation_articles AS (
-    SELECT article_url 
-    FROM [batch_evaluation] 
+    SELECT article_url
+    FROM [batch_evaluation]
     WHERE batch_evaluation.username = @UserId
         AND batch_evaluation.article_url NOT IN (SELECT * FROM user_annotations)
 )
-SELECT TOP(1) articles_v5.article_url, title, site_name, plain_content 
-FROM [articles_v5] 
-WHERE articles_v5.article_url IN (SELECT article_url FROM evaluation_articles)"  
+SELECT TOP(1) articles_v6.article_url, title, site_name, plain_content
+FROM [articles_v6]
+WHERE articles_v6.article_url IN (SELECT article_url FROM evaluation_articles)"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
@@ -272,7 +272,7 @@ WHERE articles_v5.article_url IN (SELECT article_url FROM evaluation_articles)"
     let rdr = cmd.ExecuteReader()
     let result = parseArticleData rdr NextArticle false
     conn.Close()
-    result    
+    result
 
 let selectFinishedArticles userName connectionString maxCount =
     // Select all articles annotated by the current user previously
@@ -284,9 +284,9 @@ WITH annotated AS (
     WHERE user_id = @UserId AND num_sources IS NOT NULL
     ORDER BY updated_date DESC
 )
-SELECT articles_v5.article_url, title, site_name, plain_content 
-FROM [articles_v5] INNER JOIN annotated 
-ON articles_v5.article_url = annotated.article_url"  
+SELECT articles_v6.article_url, title, site_name, plain_content
+FROM [articles_v6] INNER JOIN annotated
+ON articles_v6.article_url = annotated.article_url"
 
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
@@ -306,66 +306,66 @@ let selectNextStandardArticle connectionString userName =
 DECLARE @selected_url NVARCHAR(800);
 
 -- all articles annotated by user
-WITH user_annotations AS ( 
+WITH user_annotations AS (
     SELECT article_url, created_date
     FROM [annotations]
-    WHERE user_id = @UserId   
+    WHERE user_id = @UserId
 ),
 -- all articles that need annotations, regardless of user
-all_articles_that_need_annotation AS (   
+all_articles_that_need_annotation AS (
     SELECT minibatch_id, batch_article.article_url
-    FROM [batch_article] 
+    FROM [batch_article]
         LEFT JOIN annotations ON batch_article.article_url = annotations.article_url
     GROUP BY batch_article.article_url, batch_article.minibatch_id
     HAVING COUNT(*) < 2 AND minibatch_id > 0
 ),
 -- all articles that need annotation, excluding articles already annotated by the current user
 batch_article_to_annotate AS (
-    SELECT * 
-    FROM all_articles_that_need_annotation 
+    SELECT *
+    FROM all_articles_that_need_annotation
     WHERE article_url NOT IN (SELECT article_url FROM user_annotations)
 ),
 -- count proportion of user-annotated articles in the batches that require adding an annotation
-annotated_in_minibatch AS ( 
+annotated_in_minibatch AS (
     SELECT minibatch_id, CAST(COUNT(batch_article_to_annotate.article_url) AS FLOAT) AS n_total, CAST(COUNT(user_annotations.created_date) AS FLOAT) AS n_annotated
-    FROM batch_article_to_annotate 
+    FROM batch_article_to_annotate
         LEFT JOIN user_annotations
         ON user_annotations.article_url = batch_article_to_annotate.article_url
     GROUP BY minibatch_id
 ),
 -- take the first minibatch that needs annotations added from the current user
-selected_minibatch AS ( 
+selected_minibatch AS (
     SELECT TOP(1) annotated_in_minibatch.minibatch_id, n_annotated/n_total AS proportion
-    FROM annotated_in_minibatch 
+    FROM annotated_in_minibatch
         INNER JOIN batch_info ON annotated_in_minibatch.minibatch_id = batch_info.minibatch_id
     WHERE n_annotated/n_total < @AnnotatedProportion AND priority > 0
     ORDER BY priority
 ),
 -- articles in the selected minibatch
 potential_articles AS (
-    SELECT article_url 
+    SELECT article_url
     FROM [batch_article]
     WHERE minibatch_id IN (SELECT minibatch_id FROM selected_minibatch)
 ),
 annotated_counts AS (  -- Count how many annotations are there for each article, ignoring articles annotated by the user
-    SELECT potential_articles.article_url, COUNT(created_date) AS n 
+    SELECT potential_articles.article_url, COUNT(created_date) AS n
     FROM potential_articles LEFT JOIN [annotations] ON annotations.article_url = potential_articles.article_url
     WHERE potential_articles.article_url NOT IN (SELECT article_url FROM [annotations] WHERE user_id = @UserId)
     GROUP BY potential_articles.article_url
-    HAVING COUNT(*) < 2 
+    HAVING COUNT(*) < 2
 )
 -- sort articles randomly, starting with articles with no annotations
 SELECT @selected_url = (
     SELECT TOP(1) article_url
     FROM annotated_counts
     GROUP BY article_url, n
-    ORDER BY n, NEWID()  
+    ORDER BY n, NEWID()
 );
-SELECT articles_v5.article_url, title, site_name, plain_content 
-FROM [articles_v5] 
-WHERE articles_v5.article_url = @selected_url
-"  
-    
+SELECT articles_v6.article_url, title, site_name, plain_content
+FROM [articles_v6]
+WHERE articles_v6.article_url = @selected_url
+"
+
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
     cmd.Parameters.AddWithValue("@AnnotatedProportion", AnnotatedProportion) |> ignore
@@ -389,16 +389,16 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
     match articleType with
     | PreviouslyAnnotated ->
         // load all previously annotated articles
-        let articles = 
+        let articles =
             selectFinishedArticles userData.UserName connectionString maxArticlesToShow
         return articles
 
     | Unfinished ->
         // check if there is a previously assigned article without annotation
         // based on the logic of the algorithm, there should be only one such article
-        let articles = 
+        let articles =
             selectUnfinishedArticles connectionString userData.UserName
-        if articles.Length > 1 then 
+        if articles.Length > 1 then
             printfn "Warning: user %s has more than 1 unfinished annotation in the database." userData.UserName
         return articles
 
@@ -406,18 +406,18 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
         // Main user assignment algorithm
 
         match userData.Proficiency with
-        | Training _ -> 
+        | Training _ ->
             printfn "Next training article"
             // load article from the training batch
-            return 
+            return
                 selectNextTrainingArticle connectionString userData.UserName
 
         | Evaluation _ ->
             printfn "Next evaluation article"
             // load article from the evaluation batch
-            return 
-                selectNextEvaluationArticle connectionString userData.UserName       
-        
+            return
+                selectNextEvaluationArticle connectionString userData.UserName
+
         | Standard User ->
             // standard user
             return
@@ -425,8 +425,8 @@ let loadArticlesFromSQLDatabase connectionString (userData: UserData) articleTyp
 
         | Standard Expert ->
             // expert user
-            let articles = 
-                let conflicts = 
+            let articles =
+                let conflicts =
                     selectConflictingArticle connectionString userData.UserName
                 if conflicts.Length = 0 then
                     printfn "No conflicting articles found - selecting next standard article"
@@ -443,20 +443,20 @@ let markAssignedArticles connectionString (articles: Article []) (userData : Dom
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
-    let commandText = 
+    let commandText =
        "IF (NOT EXISTS (SELECT * FROM [annotations] WHERE article_url = @Url AND user_id = @UserId))
        BEGIN
-         INSERT INTO [annotations](article_url, user_id, user_proficiency,created_date) 
+         INSERT INTO [annotations](article_url, user_id, user_proficiency,created_date)
            VALUES (@Url, @UserId, @Proficiency, @CreatedDate)
        END"
     let cmd = new SqlCommand(commandText, conn)
-    
+
     cmd.Parameters.Add("@Url", SqlDbType.NVarChar) |> ignore
     cmd.Parameters.Add("@UserId", SqlDbType.NVarChar) |> ignore
     cmd.Parameters.Add("@Proficiency", SqlDbType.NVarChar) |> ignore
     cmd.Parameters.Add("@CreatedDate", SqlDbType.DateTime) |> ignore
 
-    articles 
+    articles
     |> Array.iter (fun article ->
         cmd.Parameters.["@Url"].Value <- article.ID
         cmd.Parameters.["@UserId"].Value <- userData.UserName
@@ -475,11 +475,11 @@ let getArticlesFromDB connectionString (userData : Domain.UserData) (articleType
     // Mark articles as assigned to the current user
     markAssignedArticles connectionString articles userData
 
-    let result =         
+    let result =
         { UserName = userData.UserName
           Articles =
             annotated
-            |> List.ofArray } 
+            |> List.ofArray }
 
     return result
 }
@@ -497,12 +497,12 @@ let saveAnnotationsToDB connectionString (annotations: ArticleAnnotations) = tas
 
     let annotationText = FableJson.toJson annotations
 
-    let commandText = 
+    let commandText =
        "UPDATE [annotations]
        SET annotation = @Annotation, updated_date = @UpdatedDate, num_sources = @NumSources
        WHERE article_url = @Url AND user_id = @UserId; "
     let cmd = new SqlCommand(commandText, conn)
-    
+
     cmd.Parameters.AddWithValue("@Url", annotations.ArticleID) |> ignore
     cmd.Parameters.AddWithValue("@Annotation", toJson annotations)  |> ignore
     cmd.Parameters.AddWithValue("@UserId", annotations.User.UserName)  |> ignore
@@ -526,7 +526,7 @@ let deleteAnnotationsFromDB connectionString (annotations: ArticleAnnotations) =
 
     let user = annotations.User.UserName
     let id = annotations.ArticleID
-    let command = "DELETE FROM [annotations] WHERE article_url = @ArticleUrl AND user_id = @UserId;"  
+    let command = "DELETE FROM [annotations] WHERE article_url = @ArticleUrl AND user_id = @UserId;"
     let cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@ArticleUrl", annotations.ArticleID) |> ignore
     cmd.Parameters.AddWithValue("@UserId", annotations.User.UserName) |> ignore
@@ -540,14 +540,14 @@ let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
-    let command = "SELECT annotation FROM [annotations] WHERE article_url = @ArticleUrl AND user_id = @UserId AND annotation IS NOT NULL;" 
+    let command = "SELECT annotation FROM [annotations] WHERE article_url = @ArticleUrl AND user_id = @UserId AND annotation IS NOT NULL;"
     use cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@ArticleUrl", articleId) |> ignore
     cmd.Parameters.AddWithValue("@UserId", userName) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = 
-        [| while rdr.Read() do  
+    let result =
+        [| while rdr.Read() do
             let text = rdr.GetString(0)
             let ann = text |> FableJson.ofJson<ArticleAnnotations>
             yield Some ann |]
@@ -556,7 +556,7 @@ let loadArticleAnnotationsFromDB connectionString articleId userName  = task {
     return (
         match result.Length with
         | 0 -> None
-        | 1 -> Array.exactlyOne result 
+        | 1 -> Array.exactlyOne result
         | _ -> result.[0])
 }
 
@@ -591,16 +591,16 @@ let IsValidUser ( connectionString : AzureConnection) userName password = task {
     cmd.Parameters.AddWithValue("@Password", password) |> ignore
 
     let rdr = cmd.ExecuteReader()
-    let result = 
-        [| while rdr.Read() do 
-            let proficiency = 
+    let result =
+        [| while rdr.Read() do
+            let proficiency =
                 match rdr.GetString(3) with
                 | "User" -> User
                 | "Expert" -> Expert
-                | _ -> User 
+                | _ -> User
             let user = {
                 UserName = rdr.GetString(0)
-                Proficiency = 
+                Proficiency =
                     match rdr.GetInt32(4) with // Passed training, i.e. went through the training batch
                     | 0 -> Training proficiency
                     | 1 -> Evaluation proficiency
@@ -608,12 +608,12 @@ let IsValidUser ( connectionString : AzureConnection) userName password = task {
                     | _ -> Training proficiency
                 Token = ServerCode.JsonWebToken.encode (
                          { UserName = rdr.GetString(0) } : ServerTypes.UserRights
-                        )            
-                }    
-            yield user |]  
+                        )
+                }
+            yield user |]
 
     conn.Close()
-    if result.Length = 0 then 
+    if result.Length = 0 then
         return None
     else
         return (Some result.[0])
@@ -622,10 +622,10 @@ let IsValidUser ( connectionString : AzureConnection) userName password = task {
 
 let FlagArticle ( connectionString : AzureConnection) (flaggedArticle: Domain.FlaggedArticle) = task {
     let blobClient = (CloudStorageAccount.Parse connectionString.BlobConnection).CreateCloudBlobClient()
-    let container = blobClient.GetContainerReference("log")  
+    let container = blobClient.GetContainerReference("log")
 
     let blob = container.GetBlockBlobReference ("flagged_articles.csv")
-    let! text = task {    
+    let! text = task {
         return! blob.DownloadTextAsync()
     }
     let text' = text + sprintf "%s,%s,%s\n" flaggedArticle.User.UserName flaggedArticle.ArticleID (System.DateTime.Now.ToString())
@@ -638,25 +638,25 @@ let UpdateUserStatus ( connectionString : AzureConnection)  (user: Domain.UserDa
     use conn = new System.Data.SqlClient.SqlConnection(connectionString.SqlConnection)
     conn.Open()
 
-    let command = 
+    let command =
         match user.Proficiency with
         | Training userType ->
             // set user status to 0
-            "UPDATE [users] SET passed_training = 0 WHERE username = @UserId"  
+            "UPDATE [users] SET passed_training = 0 WHERE username = @UserId"
 
         | Evaluation userType ->
             // set user status to 1
-            "UPDATE [users] SET passed_training = 1 WHERE username = @UserId"  
+            "UPDATE [users] SET passed_training = 1 WHERE username = @UserId"
 
-        | Standard userType -> 
+        | Standard userType ->
             // set user status to 2
-            "UPDATE [users] SET passed_training = 2 WHERE username = @UserId"  
+            "UPDATE [users] SET passed_training = 2 WHERE username = @UserId"
 
 
     let cmd = new SqlCommand(command, conn)
     cmd.Parameters.AddWithValue("@UserId", user.UserName) |> ignore
 
-    let result = cmd.ExecuteNonQuery() 
+    let result = cmd.ExecuteNonQuery()
     conn.Close()
     if result = 1 then return true else return false
 }
