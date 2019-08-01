@@ -1,3 +1,7 @@
+### 2.0.0 - 2019-08-01
+* Update to use article database v6
+* 100+ sites supported
+
 ### 1.1.5 - 2019-06-18
 * Quick fix of issue with highlighting where both beginning and end is at the beginning of a paragraph
 
